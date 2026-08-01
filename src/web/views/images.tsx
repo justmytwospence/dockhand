@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 import type { ScannedService } from '../../compose/scan.ts'
-import { Layout, Empty } from './layout.tsx'
+import { Layout, Empty, Table } from './layout.tsx'
 import { displayName } from '../../images/ref.ts'
 
 const FILTERS = [
@@ -38,7 +38,7 @@ export const ImagesPage: FC<{ services: ScannedService[]; filter: string }> = ({
       {shown.length === 0 ? (
         <Empty>Nothing matches this filter.</Empty>
       ) : (
-        <table>
+        <Table>
           <thead>
             <tr>
               <th>Stack</th>
@@ -67,7 +67,7 @@ export const ImagesPage: FC<{ services: ScannedService[]; filter: string }> = ({
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
     </Layout>
   )

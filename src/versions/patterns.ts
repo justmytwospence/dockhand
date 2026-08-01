@@ -16,8 +16,20 @@ export const PATTERN_KINDS = [
   // because the compose file pins the shape the operator chose.
   'semver-minor',
   'v-semver-minor',
+  // Four-component versions (apache/tika ships 3.3.1.0).
+  'semver-quad',
   'major-only',
   'v-major-only',
+  // "Version + variant" series: `postgres:16-alpine`, `grafana:12.4-ubuntu`,
+  // `glances:4.5.4-full`, `minuspod:2.83.3-cpu`. The variant is captured and must match
+  // exactly between the current tag and any candidate, so an `-alpine` pin can never
+  // drift onto a plain tag (or onto `-bookworm`). These are separate kinds rather than
+  // an implicit feature of `semver`, because implicit variant capture would silently
+  // break the lsio kinds -- `2.2.0-ls374` would read as variant "ls374", unique to that
+  // one build, and nothing would ever match it again.
+  'semver-variant',
+  'semver-minor-variant',
+  'major-variant',
   'lsio-ls',
   'lsio-r-ls',
   'date',
@@ -39,6 +51,10 @@ export interface ParsedTag {
   parts: number[]
   /** Anything trailing that is compared lexically only as a tiebreak (rare). */
   suffix: string
+  /** Flavour marker (`alpine`, `ubuntu`, `full`, `cpu`). Two tags are only comparable
+   *  when their variants are identical -- a variant is a different image, not a newer
+   *  version of the same one. */
+  variant: string
 }
 
 const BUILTIN: Record<Exclude<PatternKind, 'regex' | 'latest' | 'digest'>, RegExp> = {
@@ -48,6 +64,8 @@ const BUILTIN: Record<Exclude<PatternKind, 'regex' | 'latest' | 'digest'>, RegEx
   'v-semver': /^v(\d{1,3})\.(\d+)\.(\d+)$/,
   // 12.4
   'semver-minor': /^(\d{1,3})\.(\d+)$/,
+  // 3.3.1.0
+  'semver-quad': /^(\d{1,3})\.(\d+)\.(\d+)\.(\d+)$/,
   // v3.7
   'v-semver-minor': /^v(\d{1,3})\.(\d+)$/,
   // 17
@@ -60,7 +78,16 @@ const BUILTIN: Record<Exclude<PatternKind, 'regex' | 'latest' | 'digest'>, RegEx
   'lsio-r-ls': /^v?(\d{1,3})\.(\d+)\.(\d+)-r(\d+)-ls(\d+)$/,
   // 2026.04.1  /  2026-07-28
   date: /^(\d{4})[.-](\d{1,2})[.-](\d{1,3})$/,
+  // 4.5.4-full, 2.83.3-cpu  -- final group is the variant, not a number
+  'semver-variant': /^(\d{1,3})\.(\d+)\.(\d+)-([A-Za-z][\w.]*)$/,
+  // 12.4-ubuntu
+  'semver-minor-variant': /^(\d{1,3})\.(\d+)-([A-Za-z][\w.]*)$/,
+  // 16-alpine
+  'major-variant': /^(\d{1,3})-([A-Za-z][\w.]*)$/,
 }
+
+/** Kinds whose LAST capture group is a variant string rather than a number. */
+const VARIANT_KINDS = new Set<PatternKind>(['semver-variant', 'semver-minor-variant', 'major-variant'])
 
 /**
  * Parse a tag under a pattern. Returns null when the tag does not belong to the series
@@ -95,15 +122,23 @@ export function parseTag(
           .filter((v): v is string => v !== undefined)
       : m.slice(1)
     const parts = nums.map((v) => Number(v)).filter((n) => Number.isFinite(n))
-    return { raw: tag, parts, suffix: '' }
+    return { raw: tag, parts, suffix: '', variant: g?.variant ?? '' }
   }
 
   const re = BUILTIN[kind]
   const m = re.exec(tag)
   if (!m) return null
-  const parts = m.slice(1).map(Number)
+
+  let groups = m.slice(1)
+  let variant = ''
+  if (VARIANT_KINDS.has(kind)) {
+    variant = groups[groups.length - 1] ?? ''
+    groups = groups.slice(0, -1)
+  }
+
+  const parts = groups.map(Number)
   if (parts.some((n) => !Number.isFinite(n))) return null
-  return { raw: tag, parts, suffix: '' }
+  return { raw: tag, parts, suffix: '', variant }
 }
 
 /** Numeric component-wise comparison. Missing components sort as 0. */
@@ -133,8 +168,11 @@ export function classify(from: ParsedTag, to: ParsedTag, kind: PatternKind): Mag
   // A single-component series ("17" -> "18") only ever moves its major.
   if (kind === 'major-only' || kind === 'v-major-only') return 'major'
 
+  // Variant kinds classify on their numeric prefix; `major-variant` has only one slot.
+  if (kind === 'major-variant') return 'major'
+
   // A two-component series has no patch slot, so second-slot movement is a minor.
-  if (kind === 'semver-minor' || kind === 'v-semver-minor') {
+  if (kind === 'semver-minor' || kind === 'v-semver-minor' || kind === 'semver-minor-variant') {
     return (a[1] ?? 0) !== (b[1] ?? 0) ? 'minor' : 'patch'
   }
 
@@ -155,12 +193,16 @@ export function inferPattern(tag: string): PatternKind | null {
   if (BUILTIN['lsio-r-ls'].test(tag)) return 'lsio-r-ls'
   if (BUILTIN['lsio-ls'].test(tag)) return 'lsio-ls'
   if (BUILTIN.date.test(tag)) return 'date'
+  if (BUILTIN['semver-quad'].test(tag)) return 'semver-quad'
+  if (BUILTIN['semver-variant'].test(tag)) return 'semver-variant'
   if (BUILTIN['v-semver'].test(tag)) return 'v-semver'
   if (BUILTIN.semver.test(tag)) return 'semver'
   if (BUILTIN['v-semver-minor'].test(tag)) return 'v-semver-minor'
   if (BUILTIN['semver-minor'].test(tag)) return 'semver-minor'
+  if (BUILTIN['semver-minor-variant'].test(tag)) return 'semver-minor-variant'
   if (BUILTIN['v-major-only'].test(tag)) return 'v-major-only'
   if (BUILTIN['major-only'].test(tag)) return 'major-only'
+  if (BUILTIN['major-variant'].test(tag)) return 'major-variant'
   if (/^(latest|stable|main|master|edge|nightly|apache|stable-alpine)$/.test(tag)) return 'latest'
   return null
 }

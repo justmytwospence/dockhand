@@ -188,10 +188,14 @@ test('pattern inference seeds the label migration from a real tag', () => {
   for (const [tag, want] of cases) {
     assert.equal(inferPattern(tag), want, `inferPattern(${tag})`)
   }
+  // apache/tika ships four-component versions.
+  assert.equal(inferPattern('3.3.1.0'), 'semver-quad')
   // Genuinely ambiguous shapes must return null so the migration reports them for a
   // human rather than guessing.
-  assert.equal(inferPattern('3.3.1.0'), null)
   assert.equal(inferPattern('RELEASE.2025-09-07T16-13-09Z'), null)
+  assert.equal(inferPattern('version-v2.7.1'), null)
+  assert.equal(inferPattern('v0-14-3-1'), null)
+  assert.equal(inferPattern('stdio'), null)
 })
 
 test('classify treats a date year-rollover as major', () => {
@@ -232,4 +236,57 @@ test('two-component series preserve their precision', () => {
   )
   assert.equal(inferPattern('v3.7'), 'v-semver-minor')
   assert.equal(inferPattern('12.4'), 'semver-minor')
+})
+
+test('variant series never cross flavours', () => {
+  // postgres:16-alpine must follow the alpine line only. Moving it to a plain `17` --
+  // or to `17-bookworm` -- would swap the base image out from under the database.
+  assert.deepEqual(
+    selectUpdate({
+      currentTag: '16-alpine',
+      availableTags: ['16-alpine', '17-alpine', '18', '17-bookworm'],
+      kind: 'major-variant',
+    }),
+    { status: 'update', tag: '17-alpine', magnitude: 'major' },
+  )
+  // grafana:12.4-ubuntu
+  assert.deepEqual(
+    selectUpdate({
+      currentTag: '12.4-ubuntu',
+      availableTags: ['12.5-ubuntu', '12.6.0', '13.0-alpine'],
+      kind: 'semver-minor-variant',
+    }),
+    { status: 'update', tag: '12.5-ubuntu', magnitude: 'minor' },
+  )
+  // glances:4.5.4-full, minuspod:2.83.3-cpu
+  assert.deepEqual(
+    selectUpdate({
+      currentTag: '4.5.4-full',
+      availableTags: ['4.5.5-full', '4.6.0', '4.6.0-slim'],
+      kind: 'semver-variant',
+    }),
+    { status: 'update', tag: '4.5.5-full', magnitude: 'patch' },
+  )
+  assert.equal(inferPattern('16-alpine'), 'major-variant')
+  assert.equal(inferPattern('12.4-ubuntu'), 'semver-minor-variant')
+  assert.equal(inferPattern('4.5.4-full'), 'semver-variant')
+})
+
+test('variant kinds do not swallow linuxserver build counters', () => {
+  // The reason variants are opt-in kinds rather than an implicit feature of semver:
+  // under a naive variant rule `2.2.0-ls374` would parse as variant "ls374", unique to
+  // that build, and the image would never update again.
+  assert.equal(inferPattern('2.2.0-ls374'), 'lsio-ls')
+  assert.equal(inferPattern('5.1.4-r3-ls453'), 'lsio-r-ls')
+})
+
+test('four-component versions compare on every slot', () => {
+  assert.deepEqual(
+    selectUpdate({
+      currentTag: '3.3.1.0',
+      availableTags: ['3.3.1.0', '3.3.1.1', '3.3.2.0'],
+      kind: 'semver-quad',
+    }),
+    { status: 'update', tag: '3.3.2.0', magnitude: 'patch' },
+  )
 })

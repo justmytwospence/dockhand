@@ -1,6 +1,14 @@
 import { env } from '../config.ts'
 import { fetchJson, registryFetch, RegistryError } from './http.ts'
 
+/** The repository publishes too many tags to enumerate safely. Callers should fall back
+ *  to release-driven probing rather than treating this as a hard failure. */
+export class TagListTooLarge extends RegistryError {}
+
+/** The repository does not exist in the registry -- typically a locally-built image
+ *  (`mcpjungle-local:stdio`) that was never published anywhere. */
+export class RepositoryNotFound extends RegistryError {}
+
 /**
  * Tag listing across registries.
  *
@@ -59,7 +67,15 @@ async function listDockerHubTags(repository: string): Promise<TagInfo[]> {
   // walk: images like `library/postgres` carry 1000+ tags and there is no reason to
   // page through years of history to find a bump.
   for (let page = 0; page < 5 && url; page++) {
-    const body = await fetchJson<HubTagsPage>(url, { cacheKey: url })
+    let body: HubTagsPage
+    try {
+      body = await fetchJson<HubTagsPage>(url, { cacheKey: url })
+    } catch (err) {
+      if (err instanceof RegistryError && err.status === 404) {
+        throw new RepositoryNotFound(`repository not found on Docker Hub: ${repository}`, 404)
+      }
+      throw err
+    }
     for (const r of body.results ?? []) {
       if (r.tag_status && r.tag_status !== 'active') continue
       out.push({ tag: r.name, digest: r.digest ?? null, publishedAt: r.last_updated ?? null })
@@ -109,15 +125,17 @@ interface OciTagList {
 /**
  * Pages of 100. ghcr/gcr/gitlab return tags OLDEST first, so the newest release sits on
  * the LAST page -- truncating the walk does not merely lose history, it loses the very
- * tag being looked for and reports "up to date". Hence a generous cap plus a hard error
- * if it is ever reached: a loud failure is recoverable, a silent false negative is not.
+ * tag being looked for and reports "up to date". A truncated list is therefore never
+ * returned: the walk either completes or raises TagListTooLarge, and the caller falls
+ * back to release-driven probing (see probe.ts).
  *
- * Measured across this homelab's ghcr images: the median repo is 3 pages, and only
- * immich-server is pathological at 279 pages / 27.8k tags / ~34s (it publishes a tag
- * per commit and per PR). That is an acceptable once-a-night cost, and the result is
- * cached, so the cap is set well above it rather than engineering around one repo.
+ * Measured across this homelab: the median ghcr repo is 3 pages. The outliers are
+ * hopeless rather than merely slow -- immich-machine-learning is past 148,000 tags and
+ * still paginating after 3 minutes, openhands ~70,000 -- because they tag every commit
+ * and PR. So the cap is set low enough to bail out quickly and hand over to the probe,
+ * rather than high enough to grind through them.
  */
-const OCI_MAX_PAGES = 400
+const OCI_MAX_PAGES = 60
 
 async function listOciTags(registry: string, repository: string): Promise<TagInfo[]> {
   const tags: string[] = []
@@ -131,7 +149,7 @@ async function listOciTags(registry: string, repository: string): Promise<TagInf
       cacheKey: url,
     })
     if (!res.ok) {
-      if (res.status === 404) throw new RegistryError(`repository not found: ${repository}`, 404)
+      if (res.status === 404) throw new RepositoryNotFound(`repository not found: ${repository}`, 404)
       throw new RegistryError(`${res.status} listing tags for ${repository}`, res.status)
     }
     const body = (await res.json()) as OciTagList
@@ -146,9 +164,8 @@ async function listOciTags(registry: string, repository: string): Promise<TagInf
     // Still more pages when the cap ran out. Refusing is the only safe answer: the
     // newest tags live at the end of an oldest-first list, so a partial result here
     // would confidently report that a stale image is current.
-    throw new RegistryError(
-      `tag list for ${registry}/${repository} exceeded ${OCI_MAX_PAGES} pages; ` +
-        `refusing to compare against a truncated list`,
+    throw new TagListTooLarge(
+      `tag list for ${registry}/${repository} exceeds ${OCI_MAX_PAGES} pages`,
     )
   }
 

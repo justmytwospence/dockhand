@@ -1,0 +1,122 @@
+import { registryFetch } from './http.ts'
+
+/**
+ * Release-driven candidate probing.
+ *
+ * Some repositories publish a tag per commit and per pull request. Measured on this
+ * homelab: `ghcr.io/immich-app/immich-machine-learning` is past 148,000 tags and still
+ * paginating after three minutes, and `docker.openhands.dev/openhands/openhands` carries
+ * ~70,000. Enumerating those to find one release tag is hopeless, and ghcr returns tags
+ * oldest-first so a truncated walk finds nothing useful.
+ *
+ * The inversion: ask the *source repo* what it released -- GitHub's releases endpoint is
+ * newest-first, cheap, and paginated sanely -- then ask the registry only whether a
+ * specific candidate tag exists. That is a handful of HEAD requests instead of 1,500
+ * pages, and HEAD is not billed against the Docker Hub pull budget.
+ */
+
+export interface ProbeResult {
+  /** Tags confirmed to exist in the registry, newest release first. */
+  tags: string[]
+  /** Release names that were checked, for diagnostics. */
+  checked: number
+}
+
+/** How many recent releases to consider. Enough to cross a long-stale gap without
+ *  turning into its own enumeration problem. */
+const MAX_RELEASES = 40
+
+interface GhRelease {
+  tag_name: string
+  draft: boolean
+  prerelease: boolean
+  published_at: string | null
+}
+
+/**
+ * Candidate image tags derived from a release name. Registries and git tags disagree
+ * about the `v` prefix often enough that both spellings are worth a probe -- this is
+ * cheap, and guessing wrong costs one HEAD.
+ */
+export function candidateTagsFor(releaseTag: string): string[] {
+  const out = new Set<string>()
+  out.add(releaseTag)
+  if (releaseTag.startsWith('v')) out.add(releaseTag.slice(1))
+  else out.add(`v${releaseTag}`)
+  return [...out]
+}
+
+export async function fetchReleases(
+  ownerRepo: string,
+  githubToken: string,
+): Promise<GhRelease[]> {
+  const res = await fetch(
+    `https://api.github.com/repos/${ownerRepo}/releases?per_page=${MAX_RELEASES}`,
+    {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'user-agent': 'dockhand/0.1',
+        ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+      },
+    },
+  )
+  if (!res.ok) return []
+  const body = (await res.json()) as GhRelease[]
+  return body.filter((r) => !r.draft && !r.prerelease)
+}
+
+/** True when the tag resolves in the registry. HEAD only -- never billed. */
+export async function tagExists(
+  registry: string,
+  repository: string,
+  tag: string,
+): Promise<boolean> {
+  const host = registry === 'docker.io' ? 'registry-1.docker.io' : registry
+  try {
+    const res = await registryFetch(`https://${host}/v2/${repository}/manifests/${tag}`, {
+      method: 'HEAD',
+      accept: [
+        'application/vnd.oci.image.index.v1+json',
+        'application/vnd.docker.distribution.manifest.list.v2+json',
+        'application/vnd.oci.image.manifest.v1+json',
+        'application/vnd.docker.distribution.manifest.v2+json',
+      ].join(','),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Build a candidate tag list for a repository that is too large to enumerate, by
+ * confirming which recent upstream releases actually exist as image tags.
+ *
+ * Returns the confirmed tags plus the current tag, which is what the ordinary comparator
+ * then reasons over -- so pattern semantics, variant isolation and magnitude
+ * classification all behave identically to the enumerated path.
+ */
+export async function probeByReleases(opts: {
+  registry: string
+  repository: string
+  currentTag: string
+  sourceRepo: string
+  githubToken: string
+}): Promise<ProbeResult> {
+  const { registry, repository, currentTag, sourceRepo, githubToken } = opts
+  const releases = await fetchReleases(sourceRepo, githubToken)
+  const confirmed: string[] = [currentTag]
+  let checked = 0
+
+  for (const rel of releases) {
+    checked++
+    for (const cand of candidateTagsFor(rel.tag_name)) {
+      if (cand === currentTag) continue
+      if (await tagExists(registry, repository, cand)) {
+        confirmed.push(cand)
+        break
+      }
+    }
+  }
+  return { tags: confirmed, checked }
+}

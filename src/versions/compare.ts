@@ -73,6 +73,8 @@ export function selectUpdate(opts: SelectOptions): Comparison {
     if (include && !include.test(tag)) continue
     const parsed = parseTag(tag, kind, regex)
     if (!parsed) continue
+    // A different flavour is a different image, never a newer version of this one.
+    if (parsed.variant !== current.variant) continue
     if (compareTags(parsed, current) <= 0) continue
     if (!best || compareTags(parsed, best) > 0) best = parsed
   }
@@ -99,7 +101,7 @@ export function intermediateTags(opts: SelectOptions): string[] {
   return availableTags
     .filter((t) => !include || include.test(t))
     .map((t) => parseTag(t, kind, regex))
-    .filter((p): p is ParsedTag => !!p && compareTags(p, current) > 0)
+    .filter((p): p is ParsedTag => !!p && p.variant === current.variant && compareTags(p, current) > 0)
     .sort(compareTags)
     .map((p) => p.raw)
 }

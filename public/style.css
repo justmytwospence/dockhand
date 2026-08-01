@@ -9,6 +9,10 @@
   --error: #a33227;
   --ok: #2f6f57;
   --radius: 6px;
+  /* One column definition, used by both the top bar and the page body so their
+     contents line up on every viewport. */
+  --col: 1080px;
+  --gutter: 1.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,20 +33,45 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
   font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Wide content scrolls inside its own container; the page itself never does. */
+  overflow-x: hidden;
 }
 
+/* ------------------------------------------------------------------ chrome */
+
 .topbar {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.bar-inner,
+main {
+  max-width: var(--col);
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+}
+
+.bar-inner {
   display: flex;
   align-items: baseline;
   gap: 1.5rem;
-  padding: 0.85rem 1.5rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  padding-block: 0.85rem;
+}
+
+main {
+  padding-block: 1.75rem 4rem;
 }
 
 .brand {
@@ -50,11 +79,20 @@ body {
   letter-spacing: -0.01em;
   text-decoration: none;
   color: var(--fg);
+  flex: none;
 }
 
 .topbar nav {
   display: flex;
   gap: 1.1rem;
+  /* Let the links scroll rather than wrap the bar onto two lines on a phone. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.topbar nav::-webkit-scrollbar {
+  display: none;
 }
 
 .topbar nav a,
@@ -62,6 +100,9 @@ body {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.92rem;
+  white-space: nowrap;
+  /* Comfortable tap target without visually enlarging the bar. */
+  padding-block: 0.35rem;
 }
 
 .topbar nav a.active,
@@ -75,11 +116,7 @@ body {
   color: var(--fg);
 }
 
-main {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 1.75rem 1.5rem 4rem;
-}
+/* ------------------------------------------------------------------ text */
 
 h2 {
   font-size: 1.02rem;
@@ -103,11 +140,19 @@ p.empty {
   display: flex;
   gap: 1rem;
   margin: 0.6rem 0 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ tiles */
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -134,21 +179,23 @@ p.empty {
   font-size: 0.82rem;
 }
 
-table {
+/* ------------------------------------------------------------------ tables */
+
+/* The scroll container is a wrapper, not the table itself: making <table> a block
+   breaks its own column sizing, so the table stays display:table inside it. */
+.table-wrap {
   width: 100%;
-  border-collapse: collapse;
+  overflow-x: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  overflow: hidden;
-  font-size: 0.9rem;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Wide tables scroll inside their own box rather than the page. */
 table {
-  display: block;
-  overflow-x: auto;
-  white-space: normal;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
 }
 
 th,
@@ -165,6 +212,7 @@ thead th {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 tbody tr:last-child td {
@@ -180,6 +228,8 @@ table.kv th {
 .mono {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.86em;
+  /* Long image refs and digests break rather than forcing a wide scroll. */
+  overflow-wrap: anywhere;
 }
 
 .nowrap {
@@ -192,7 +242,10 @@ code {
   background: color-mix(in srgb, var(--fg) 7%, transparent);
   padding: 0.08em 0.32em;
   border-radius: 3px;
+  overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------------------------ bits */
 
 .pill {
   display: inline-block;
@@ -200,16 +253,18 @@ code {
   border-radius: 999px;
   font-size: 0.78rem;
   border: 1px solid currentColor;
+  white-space: nowrap;
 }
 
 .pill.ok {
   color: var(--ok);
 }
-
 .pill.warn {
   color: var(--warn);
 }
-
+.pill.err {
+  color: var(--error);
+}
 .pill.muted {
   color: var(--muted);
 }
@@ -230,12 +285,10 @@ code {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
-
 .banner.warn {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 10%, transparent);
 }
-
 .banner.error {
   color: var(--error);
   background: color-mix(in srgb, var(--error) 10%, transparent);
@@ -244,7 +297,6 @@ code {
 .row-warn td {
   background: color-mix(in srgb, var(--warn) 7%, transparent);
 }
-
 .row-error td {
   background: color-mix(in srgb, var(--error) 7%, transparent);
 }
@@ -253,4 +305,55 @@ code {
   color: var(--muted);
   font-size: 0.85em;
   margin-top: 0.2rem;
+}
+
+/* ------------------------------------------------------------------ mobile */
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 1rem;
+  }
+
+  body {
+    font-size: 14px;
+  }
+
+  .bar-inner {
+    gap: 1rem;
+    padding-block: 0.7rem;
+  }
+
+  main {
+    padding-block: 1.25rem 3rem;
+  }
+
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .tile {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .tile .num {
+    font-size: 1.35rem;
+  }
+
+  th,
+  td {
+    padding: 0.45rem 0.6rem;
+  }
+
+  /* A 200px label column leaves nothing for the value on a narrow screen. */
+  table.kv th {
+    width: auto;
+    min-width: 130px;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand {
+    font-size: 0.95rem;
+  }
 }

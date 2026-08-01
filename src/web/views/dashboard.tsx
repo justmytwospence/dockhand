@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import type { ScannedService } from '../../compose/scan.ts'
-import { Layout, Banner, Empty } from './layout.tsx'
+import { Layout, Banner, Empty, Table } from './layout.tsx'
 import { displayName } from '../../images/ref.ts'
 
 export const Dashboard: FC<{
@@ -60,7 +60,7 @@ export const Dashboard: FC<{
       {watched.length === 0 ? (
         <Empty>None yet.</Empty>
       ) : (
-        <table>
+        <Table>
           <thead>
             <tr>
               <th>Stack</th>
@@ -83,14 +83,14 @@ export const Dashboard: FC<{
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <h2>Recent activity</h2>
       {recent.length === 0 ? (
         <Empty>Nothing logged yet.</Empty>
       ) : (
-        <table>
+        <Table>
           <tbody>
             {recent.map((r) => (
               <tr>
@@ -100,7 +100,7 @@ export const Dashboard: FC<{
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
     </Layout>
   )

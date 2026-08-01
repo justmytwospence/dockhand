@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
-import { Layout, Banner, Empty } from './layout.tsx'
+import { Layout, Banner, Empty, Table } from './layout.tsx'
 import { env } from '../../config.ts'
 
 export const SystemPage: FC<{
@@ -14,7 +14,7 @@ export const SystemPage: FC<{
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
     <h2>Configuration</h2>
-    <table class="kv">
+    <Table kv>
       <tbody>
         <tr>
           <th>version</th>
@@ -60,18 +60,18 @@ export const SystemPage: FC<{
           <td class="mono">{policy.exclude_stacks.join(', ')}</td>
         </tr>
       </tbody>
-    </table>
+    </Table>
 
     <h2>Credentials</h2>
     <p class="sub">Presence only &mdash; values are never read into the UI.</p>
-    <table class="kv">
+    <Table kv>
       <tbody>
         <Cred name="GITHUB_TOKEN" set={!!env.githubToken} />
         <Cred name="ANTHROPIC_API_KEY" set={!!env.anthropicApiKey} />
         <Cred name="NTFY_TOKEN" set={!!env.ntfyToken} />
         <Cred name="DOCKER_HUB_LOGIN" set={!!env.dockerHubLogin} />
       </tbody>
-    </table>
+    </Table>
 
     <h2>Budgets</h2>
     {budgets.length === 0 ? (
@@ -79,7 +79,7 @@ export const SystemPage: FC<{
         No budget counters yet &mdash; they populate once the registry poller and analyzer run.
       </Empty>
     ) : (
-      <table class="kv">
+      <Table kv>
         <tbody>
           {budgets.map((b) => (
             <tr>
@@ -91,7 +91,7 @@ export const SystemPage: FC<{
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     )}
   </Layout>
 )

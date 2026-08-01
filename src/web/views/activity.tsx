@@ -1,5 +1,5 @@
 import type { FC } from 'hono/jsx'
-import { Layout, Empty } from './layout.tsx'
+import { Layout, Empty, Table } from './layout.tsx'
 
 export const ActivityPage: FC<{ rows: Record<string, unknown>[] }> = ({ rows }) => (
   <Layout title="Activity" path="/activity">
@@ -7,7 +7,7 @@ export const ActivityPage: FC<{ rows: Record<string, unknown>[] }> = ({ rows }) 
     {rows.length === 0 ? (
       <Empty>Nothing logged yet.</Empty>
     ) : (
-      <table>
+      <Table>
         <thead>
           <tr>
             <th>When</th>
@@ -33,7 +33,7 @@ export const ActivityPage: FC<{ rows: Record<string, unknown>[] }> = ({ rows }) 
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     )}
   </Layout>
 )
