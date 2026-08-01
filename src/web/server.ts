@@ -22,10 +22,13 @@ import { SystemPage } from './views/system.tsx'
 
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
-         u.tier, u.state, u.detail, p.number AS pr_number
+         u.tier, u.state, u.detail, p.number AS pr_number,
+         v.recommendation, v.confidence
   FROM updates u
   LEFT JOIN pr_updates pu ON pu.update_id = u.id
   LEFT JOIN prs p ON p.id = pu.pr_id AND p.state = 'open'
+  LEFT JOIN verdicts v ON v.image = u.image AND v.from_tag = u.from_tag
+                      AND v.to_tag = u.to_tag AND v.error IS NULL
   WHERE u.state IN ('detected','pr_open','held')
   ORDER BY CASE u.magnitude WHEN 'major' THEN 0 WHEN 'minor' THEN 1
                             WHEN 'patch' THEN 2 ELSE 3 END, u.stack, u.service`
@@ -105,7 +108,7 @@ export function createApp(): Hono {
          WHERE id = ? AND state IN ('detected','held')`,
       )
       .run(new Date().toISOString(), id)
-    return c.html('<tr class="dismissed"><td colspan="5" class="sub">dismissed</td></tr>')
+    return c.html('<tr class="dismissed"><td colspan="6" class="sub">dismissed</td></tr>')
   })
 
   /**
@@ -119,7 +122,7 @@ export function createApp(): Hono {
       .prepare(`SELECT stack, service FROM updates WHERE id = ? AND state = 'held'`)
       .get(id) as { stack: string; service: string } | undefined
     if (!row) {
-      return c.html('<tr><td colspan="5" class="sub">no longer held</td></tr>')
+      return c.html('<tr><td colspan="6" class="sub">no longer held</td></tr>')
     }
     getDb()
       .prepare(
@@ -134,7 +137,7 @@ export function createApp(): Hono {
       message: 'held update released for PR by operator',
     })
     return c.html(
-      '<tr><td colspan="5" class="sub">queued &mdash; a PR opens on the next cycle</td></tr>',
+      '<tr><td colspan="6" class="sub">queued &mdash; a PR opens on the next cycle</td></tr>',
     )
   })
 
@@ -164,7 +167,7 @@ export function createApp(): Hono {
     const svc = scanRepo(env.homelabRepo, policy.exclude_stacks).find(
       (s) => s.stack === stack && s.service === service,
     )
-    if (!svc) return c.html('<tr><td colspan="5" class="sub">no such service</td></tr>', 404)
+    if (!svc) return c.html('<tr><td colspan="6" class="sub">no such service</td></tr>', 404)
     if (svc.watched) await scanOne(svc, policy)
     return c.html(ImageRow({ svc, status: statuses().get(`${stack}/${service}`) }) as string)
   })

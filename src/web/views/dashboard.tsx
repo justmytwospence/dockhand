@@ -15,6 +15,8 @@ export interface PendingRow {
   state: string
   detail: string | null
   pr_number: number | null
+  recommendation: string | null
+  confidence: string | null
 }
 
 export interface ScanInfo {
@@ -22,6 +24,12 @@ export interface ScanInfo {
   durationS: number | null
   counts: Record<string, number> | null
   running: boolean
+}
+
+const VERDICT: Record<string, { cls: string; icon: string; label: string }> = {
+  approve: { cls: 'ok', icon: '\u2713', label: 'safe to apply' },
+  caution: { cls: 'warn', icon: '\u26a0', label: 'read first' },
+  block: { cls: 'err', icon: '\u2298', label: 'breaking changes' },
 }
 
 const MAGNITUDE_CLASS: Record<string, string> = {
@@ -184,6 +192,7 @@ const Section: FC<{
             <th>Service</th>
             <th>Change</th>
             <th>Kind</th>
+            <th>Analysis</th>
             <th>PR</th>
             {action && <th></th>}
           </tr>
@@ -216,6 +225,18 @@ const Section: FC<{
               </td>
               <td>
                 <span class={`pill ${MAGNITUDE_CLASS[r.magnitude] ?? 'muted'}`}>{r.magnitude}</span>
+              </td>
+              <td class="nowrap">
+                {r.recommendation && VERDICT[r.recommendation] ? (
+                  <span
+                    class={`pill ${VERDICT[r.recommendation]!.cls}`}
+                    title={`${VERDICT[r.recommendation]!.label} (${r.confidence} confidence)`}
+                  >
+                    {VERDICT[r.recommendation]!.icon} {r.recommendation}
+                  </span>
+                ) : (
+                  <span class="sub">&mdash;</span>
+                )}
               </td>
               <td class="nowrap">
                 {r.pr_number ? (
