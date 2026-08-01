@@ -1,6 +1,7 @@
 import { Cron } from 'croner'
 import { env, inBlackout, loadPolicy } from './config.ts'
 import { logEvent } from './db.ts'
+import { runAnalysisPass } from './analyze/run.ts'
 import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
 import { runPrPass } from './gitops/pr.ts'
 import { runScan } from './scan.ts'
@@ -35,6 +36,9 @@ function startPrLoop(): void {
       if (policy.prs.enabled && !inBlackout(policy)) {
         await pollPrs()
         const result = await runPrPass()
+        // Analysis runs after PR creation, not before: a pull request must appear
+        // whether or not the model is reachable.
+        await runAnalysisPass()
         if (result.paused) {
           logEvent({
             level: 'info',

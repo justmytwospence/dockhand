@@ -1,0 +1,272 @@
+import { Octokit } from 'octokit'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { env, loadPolicy } from '../config.ts'
+import { getDb, logEvent } from '../db.ts'
+import { notify } from '../notify.ts'
+import { analyze, budgetExhausted, type Verdict } from './claude.ts'
+
+/**
+ * Analysing open pull requests and folding the result back into them.
+ *
+ * Analysis is decoupled from PR creation on purpose: a pull request must appear whether
+ * or not the model is reachable. When a verdict arrives later it is written into the
+ * body between markers, and the labels change to match.
+ */
+
+let octokit: Octokit | null = null
+function gh(): Octokit {
+  octokit ??= new Octokit({ auth: env.githubToken })
+  return octokit
+}
+
+const START = '<!-- dockhand:verdict:start -->'
+const END = '<!-- dockhand:verdict:end -->'
+
+export interface AnalysisRun {
+  analysed: number
+  skipped: number
+  failed: number
+}
+
+/** Analyse up to `limit` un-analysed open PRs. */
+export async function runAnalysisPass(limit = 3): Promise<AnalysisRun> {
+  const out: AnalysisRun = { analysed: 0, skipped: 0, failed: 0 }
+  const { policy } = loadPolicy()
+  if (policy.claude.mode === 'off' || !env.anthropicApiKey) return out
+  if (budgetExhausted()) {
+    out.skipped++
+    return out
+  }
+
+  const db = getDb()
+  // One verdict per (image, from, to): the same postgres bump in three stacks is judged
+  // once and reused everywhere.
+  const pending = db
+    .prepare(
+      `SELECT DISTINCT u.image, u.from_tag, u.to_tag, u.stack, u.service
+       FROM updates u
+       JOIN pr_updates pu ON pu.update_id = u.id
+       JOIN prs p ON p.id = pu.pr_id AND p.state = 'open'
+       WHERE NOT EXISTS (
+         SELECT 1 FROM verdicts v
+         WHERE v.image = u.image AND v.from_tag = u.from_tag AND v.to_tag = u.to_tag
+           AND v.error IS NULL
+       )
+       LIMIT ?`,
+    )
+    .all(limit) as {
+    image: string
+    from_tag: string
+    to_tag: string
+    stack: string
+    service: string
+  }[]
+
+  for (const row of pending) {
+    if (budgetExhausted()) {
+      out.skipped++
+      break
+    }
+    try {
+      const result = await analyze({
+        image: row.image,
+        fromTag: row.from_tag,
+        toTag: row.to_tag,
+        composeSnippet: composeSnippet(row.stack, row.service),
+      })
+      if ('error' in result) {
+        recordFailure(row, result.error)
+        out.failed++
+        continue
+      }
+      recordVerdict(row, result)
+      await applyToPrs(row, result)
+      out.analysed++
+    } catch (err) {
+      recordFailure(row, (err as Error).message)
+      out.failed++
+    }
+  }
+  return out
+}
+
+/** The service's own compose block, so the model can flag config-relevant changes. */
+function composeSnippet(stack: string, service: string): string | undefined {
+  const row = getDb()
+    .prepare(`SELECT compose_file FROM images WHERE stack = ? AND service = ?`)
+    .get(stack, service) as { compose_file: string } | undefined
+  if (!row) return undefined
+  let text: string
+  try {
+    text = readFileSync(join(env.homelabRepo, row.compose_file), 'utf8')
+  } catch {
+    return undefined
+  }
+  const lines = text.split('\n')
+  const start = lines.findIndex((l) => new RegExp(`^\\s{1,4}${escape(service)}:\\s*$`).test(l))
+  if (start === -1) return undefined
+  const indent = lines[start]!.match(/^\s*/)![0].length
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    const l = lines[i]!
+    if (!l.trim()) continue
+    if (l.match(/^\s*/)![0].length <= indent) {
+      end = i
+      break
+    }
+  }
+  return lines.slice(start, Math.min(end, start + 60)).join('\n')
+}
+
+function escape(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function recordVerdict(
+  row: { image: string; from_tag: string; to_tag: string },
+  v: Verdict,
+): void {
+  const { policy } = loadPolicy()
+  getDb()
+    .prepare(
+      `INSERT INTO verdicts (image, from_tag, to_tag, summary, severity, breaking_changes,
+                             migration_steps, recommendation, confidence, sources, model,
+                             cost_usd, error, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+       ON CONFLICT(image, from_tag, to_tag) DO UPDATE SET
+         summary = excluded.summary, severity = excluded.severity,
+         breaking_changes = excluded.breaking_changes,
+         migration_steps = excluded.migration_steps,
+         recommendation = excluded.recommendation, confidence = excluded.confidence,
+         sources = excluded.sources, model = excluded.model, error = NULL,
+         created_at = excluded.created_at`,
+    )
+    .run(
+      row.image,
+      row.from_tag,
+      row.to_tag,
+      v.summary,
+      v.severity,
+      JSON.stringify(v.breaking_changes),
+      JSON.stringify(v.migration_steps),
+      v.recommendation,
+      v.confidence,
+      JSON.stringify(v.sources),
+      policy.claude.model,
+      new Date().toISOString(),
+    )
+}
+
+function recordFailure(
+  row: { image: string; from_tag: string; to_tag: string },
+  error: string,
+): void {
+  getDb()
+    .prepare(
+      `INSERT INTO verdicts (image, from_tag, to_tag, error, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(image, from_tag, to_tag) DO UPDATE SET
+         error = excluded.error, created_at = excluded.created_at`,
+    )
+    .run(row.image, row.from_tag, row.to_tag, error.slice(0, 400), new Date().toISOString())
+  logEvent({
+    level: 'warn',
+    kind: 'analysis',
+    message: 'changelog analysis failed',
+    detail: `${row.image} ${row.from_tag} -> ${row.to_tag}: ${error.slice(0, 160)}`,
+  })
+}
+
+/** Write the verdict into every open PR carrying this update, and adjust its labels. */
+async function applyToPrs(
+  row: { image: string; from_tag: string; to_tag: string },
+  v: Verdict,
+): Promise<void> {
+  const prs = getDb()
+    .prepare(
+      `SELECT DISTINCT p.number FROM prs p
+       JOIN pr_updates pu ON pu.pr_id = p.id
+       JOIN updates u ON u.id = pu.update_id
+       WHERE p.state = 'open' AND u.image = ? AND u.from_tag = ? AND u.to_tag = ?`,
+    )
+    .all(row.image, row.from_tag, row.to_tag) as { number: number }[]
+
+  const [owner, repo] = env.githubRepo.split('/') as [string, string]
+  const { policy } = loadPolicy()
+  const demoted =
+    policy.claude.block_on.includes(v.recommendation as 'block' | 'caution') ||
+    (v.recommendation === 'approve' && rank(v.confidence) < rank(policy.claude.min_confidence))
+
+  for (const pr of prs) {
+    try {
+      const current = (await gh().rest.pulls.get({ owner, repo, pull_number: pr.number })).data.body ?? ''
+      const rendered = render(v)
+      const body =
+        current.includes(START) && current.includes(END)
+          ? current.slice(0, current.indexOf(START) + START.length) +
+            `\n${rendered}\n` +
+            current.slice(current.indexOf(END))
+          : `${current}\n\n${START}\n${rendered}\n${END}`
+
+      await gh().rest.pulls.update({ owner, repo, pull_number: pr.number, body })
+      await gh().rest.issues.removeLabel({ owner, repo, issue_number: pr.number, name: 'needs-analysis' }).catch(() => {})
+      if (v.recommendation === 'block') {
+        await gh().rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['claude-block'] })
+      } else if (demoted) {
+        await gh().rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['claude-hold'] })
+      }
+
+      logEvent({
+        level: v.recommendation === 'block' ? 'warn' : 'info',
+        kind: 'analysis',
+        message: `#${pr.number} analysed: ${v.recommendation} (${v.confidence} confidence)`,
+        detail: v.summary.slice(0, 160),
+      })
+    } catch (err) {
+      logEvent({
+        level: 'warn',
+        kind: 'analysis',
+        message: `could not update #${pr.number} with its verdict`,
+        detail: (err as Error).message.slice(0, 160),
+      })
+    }
+  }
+
+  if (v.recommendation === 'block' && prs.length > 0) {
+    await notify({
+      title: 'dockhand: breaking changes found',
+      body: `${row.image} ${row.from_tag} -> ${row.to_tag}\n\n${v.summary}`,
+      priority: 4,
+      tags: ['warning'],
+      click: `https://github.com/${env.githubRepo}/pull/${prs[0]!.number}`,
+    })
+  }
+}
+
+function rank(c: string): number {
+  return c === 'high' ? 2 : c === 'medium' ? 1 : 0
+}
+
+const ICON: Record<string, string> = { approve: '✅', caution: '⚠️', block: '⛔' }
+
+function render(v: Verdict): string {
+  const lines = [
+    `### Changelog analysis`,
+    ``,
+    `${ICON[v.recommendation] ?? ''} **${v.recommendation}** · severity \`${v.severity}\` · confidence \`${v.confidence}\``,
+    ``,
+    v.summary,
+  ]
+  if (v.breaking_changes.length > 0) {
+    lines.push('', '**Breaking changes**', ...v.breaking_changes.map((b) => `- ${b}`))
+  }
+  if (v.migration_steps.length > 0) {
+    lines.push('', '**Required steps**', ...v.migration_steps.map((s) => `- ${s}`))
+  }
+  if (v.sources.length > 0) {
+    lines.push('', '<details><summary>Sources</summary>', '', ...v.sources.map((s) => `- ${s}`), '</details>')
+  }
+  lines.push('', `<sub>Written by \`${loadPolicy().policy.claude.model}\`. Release notes are untrusted input; this verdict can withhold a merge but never cause one.</sub>`)
+  return lines.join('\n')
+}
