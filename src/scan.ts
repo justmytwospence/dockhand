@@ -89,6 +89,7 @@ function summarise(counts: Record<string, number>, durationS: number): string {
   say('bootstrapped', 'digest baseline(s) initialised')
   say('moved-rolling', 'rolling image(s) moved')
   say('moved-pinned', 'pinned digest(s) moved')
+  say('retiered', 'policy change(s)')
   say('needs-attention', 'needing attention')
   say('error', 'error(s)')
   if (parts.length === 0) parts.push('no changes')
@@ -157,12 +158,13 @@ interface UpdateRow {
   to_tag: string
   state: string
   magnitude: string
+  tier: string
 }
 
 function liveRows(stack: string, service: string): UpdateRow[] {
   return getDb()
     .prepare(
-      `SELECT id, from_tag, to_tag, state, magnitude FROM updates
+      `SELECT id, from_tag, to_tag, state, magnitude, tier FROM updates
        WHERE stack = ? AND service = ? AND state IN ${LIVE_STATES}`,
     )
     .all(stack, service) as UpdateRow[]
@@ -256,9 +258,35 @@ async function persist(
       const currentTag = svc.ref?.tag ?? ''
       const existing = liveRows(svc.stack, svc.service)
 
+      const tier = tierFor({
+        magnitude: d.magnitude as Magnitude,
+        policyLabel: svc.policyLabel,
+        prLabel: svc.prLabel,
+        defaults: policy.defaults,
+      })
+
       const same = existing.find((r) => r.from_tag === currentTag && r.to_tag === d.tag)
       if (same) {
-        // Already known. Touch and stay silent -- this is the idempotence guarantee.
+        // Already known: touch and stay silent -- this is the idempotence guarantee.
+        //
+        // But the tier is re-derived every scan rather than frozen at insert time.
+        // Labels live in the compose files precisely so that editing one takes effect
+        // without recreating anything; if the tier were only ever set on insert, adding
+        // `dockhand.pr: on-request` to a service with an outstanding update would
+        // silently do nothing until that update happened to be superseded.
+        if (same.tier !== tier) {
+          const nextState = tier === 'held' ? 'held' : same.state === 'held' ? 'detected' : same.state
+          db.prepare(`UPDATE updates SET tier = ?, state = ?, updated_at = ? WHERE id = ?`)
+            .run(tier, nextState, now, same.id)
+          logEvent({
+            level: 'info',
+            kind: 'policy',
+            stack: svc.stack,
+            service: svc.service,
+            message: `policy changed: ${same.tier} -> ${tier}`,
+          })
+          return 'retiered'
+        }
         db.prepare(`UPDATE updates SET updated_at = ? WHERE id = ?`).run(now, same.id)
         return 'unchanged'
       }
@@ -267,12 +295,6 @@ async function persist(
         supersede(r.id, r.to_tag === d.tag ? 'rebased on new current tag' : `newer target ${d.tag}`)
       }
 
-      const tier = tierFor({
-        magnitude: d.magnitude as Magnitude,
-        policyLabel: svc.policyLabel,
-        prLabel: svc.prLabel,
-        defaults: policy.defaults,
-      })
       if (tier === 'skip') return 'skipped'
 
       insertUpdate({
@@ -360,16 +382,26 @@ function persistDigest(svc: ScannedService, c: DigestCheck, policy: Policy): str
       setImageStatus(svc, null, null)
       const fromTag = `${tag}@${c.from}`
       const toTag = `${tag}@${c.to}`
-      const existing = liveRows(svc.stack, svc.service)
-      if (existing.some((r) => r.from_tag === fromTag && r.to_tag === toTag)) return 'unchanged'
-      for (const r of existing) supersede(r.id, 'newer digest')
-
       const tier = tierFor({
         magnitude: 'digest',
         policyLabel: svc.policyLabel,
         prLabel: svc.prLabel,
         defaults: policy.defaults,
       })
+      const existing = liveRows(svc.stack, svc.service)
+      const same = existing.find((r) => r.from_tag === fromTag && r.to_tag === toTag)
+      if (same) {
+        // Re-derive the tier so a label edit lands without waiting for a new digest.
+        if (same.tier !== tier) {
+          getDb()
+            .prepare(`UPDATE updates SET tier = ?, state = ?, updated_at = ? WHERE id = ?`)
+            .run(tier, tier === 'held' ? 'held' : 'detected', new Date().toISOString(), same.id)
+          return 'retiered'
+        }
+        return 'unchanged'
+      }
+      for (const r of existing) supersede(r.id, 'newer digest')
+
       if (tier === 'skip') return 'skipped'
       insertUpdate({
         svc,

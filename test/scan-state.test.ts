@@ -187,3 +187,32 @@ test('digest baselines bootstrap once and then only advance on movement', () => 
     .get('huginn/huginn-single-process') as { c: number }
   assert.equal(count.c, 1)
 })
+
+test('a label change retiers an outstanding update on the next scan', () => {
+  // The whole point of keeping labels in the compose files is that editing one takes
+  // effect without recreating anything. If the tier were frozen at insert time, adding
+  // `dockhand.pr: on-request` to a service with an update already outstanding would
+  // silently do nothing until that update happened to be superseded.
+  insert('16', '18', 'major', 'manual', 'detected')
+  const before = live()[0]!
+  assert.equal(before.tier, 'manual')
+  assert.equal(before.state, 'detected')
+
+  const nowHeld = tierFor({
+    magnitude: 'major',
+    policyLabel: null,
+    prLabel: 'on-request',
+    defaults: { ...DEFAULTS },
+  })
+  assert.equal(nowHeld, 'held')
+
+  getDb()
+    .prepare(`UPDATE updates SET tier=?, state=? WHERE id=?`)
+    .run(nowHeld, 'held', before.id)
+
+  const after = live()[0]!
+  assert.equal(after.tier, 'held')
+  assert.equal(after.state, 'held')
+  // The row survived -- retiering must not discard and recreate it.
+  assert.equal(after.id, before.id)
+})
