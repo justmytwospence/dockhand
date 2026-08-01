@@ -43,27 +43,7 @@ export async function runScan(trigger: 'cron' | 'manual'): Promise<ScanResult> {
 
     for (const svc of services) {
       if (!svc.watched) continue
-      let d: Detection
-      try {
-        d = await detect(svc)
-      } catch (err) {
-        // detect() is meant to be total, but a bug there must not cost the whole sweep.
-        d = { status: 'error', detail: (err as Error).message }
-      }
-      try {
-        const outcome = await persist(svc, d, policy)
-        bump(outcome)
-      } catch (err) {
-        bump('persist-error')
-        logEvent({
-          level: 'error',
-          kind: 'scan',
-          stack: svc.stack,
-          service: svc.service,
-          message: 'failed to record scan result',
-          detail: (err as Error).message,
-        })
-      }
+      bump(await scanOne(svc, policy))
     }
 
     const durationS = Math.round((Date.now() - started) / 1000)
@@ -77,6 +57,34 @@ export async function runScan(trigger: 'cron' | 'manual'): Promise<ScanResult> {
     return { status: 'completed', counts, durationS }
   } finally {
     running = false
+  }
+}
+
+/**
+ * Detect and persist one service. Shared by the nightly sweep and the per-service
+ * "Check now" button, so both paths behave identically -- including the isolation: a
+ * failure here is recorded against that service and never propagates.
+ */
+export async function scanOne(svc: ScannedService, policy: Policy): Promise<string> {
+  let d: Detection
+  try {
+    d = await detect(svc)
+  } catch (err) {
+    // detect() is meant to be total, but a bug there must not cost the whole sweep.
+    d = { status: 'error', detail: (err as Error).message }
+  }
+  try {
+    return await persist(svc, d, policy)
+  } catch (err) {
+    logEvent({
+      level: 'error',
+      kind: 'scan',
+      stack: svc.stack,
+      service: svc.service,
+      message: 'failed to record scan result',
+      detail: (err as Error).message,
+    })
+    return 'persist-error'
   }
 }
 
@@ -191,6 +199,13 @@ function setImageStatus(
   return { changed }
 }
 
+/** A newer release exists but a deliberate `tag.include` pin suppressed it. */
+function setConstrained(svc: ScannedService, tag: string | null): void {
+  getDb()
+    .prepare(`UPDATE images SET constrained_from = ? WHERE stack = ? AND service = ?`)
+    .run(tag, svc.stack, svc.service)
+}
+
 function rememberTags(svc: ScannedService, observed: TagInfo[]): void {
   if (!svc.ref || observed.length === 0) return
   const db = getDb()
@@ -254,6 +269,7 @@ async function persist(
   switch (d.status) {
     case 'update': {
       setImageStatus(svc, null, null)
+      setConstrained(svc, null)
       rememberTags(svc, d.observed)
       const currentTag = svc.ref?.tag ?? ''
       const existing = liveRows(svc.stack, svc.service)
@@ -318,6 +334,7 @@ async function persist(
 
     case 'up-to-date': {
       setImageStatus(svc, null, null)
+      setConstrained(svc, d.constrainedFrom ?? null)
       rememberTags(svc, d.observed)
       const currentTag = svc.ref?.tag ?? ''
       for (const r of liveRows(svc.stack, svc.service)) {

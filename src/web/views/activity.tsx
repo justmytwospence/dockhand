@@ -1,39 +1,112 @@
 import type { FC } from 'hono/jsx'
 import { Layout, Empty, Table } from './layout.tsx'
 
-export const ActivityPage: FC<{ rows: Record<string, unknown>[] }> = ({ rows }) => (
+export const KINDS = ['scan', 'policy', 'pr', 'analysis', 'deploy', 'sync', 'system'] as const
+
+export interface ActivityFilter {
+  kind: string
+  level: string
+}
+
+export const ActivityPage: FC<{
+  rows: Record<string, unknown>[]
+  filter: ActivityFilter
+  repo: string
+}> = ({ rows, filter, repo }) => (
   <Layout title="Activity" path="/activity">
     <h2>Activity log</h2>
-    {rows.length === 0 ? (
-      <Empty>Nothing logged yet.</Empty>
-    ) : (
-      <Table>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Level</th>
-            <th>Kind</th>
-            <th>Target</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr class={r.level === 'error' ? 'row-error' : r.level === 'warn' ? 'row-warn' : ''}>
+    <p class="sub">Every recorded event, newest first.</p>
+
+    <nav class="filters">
+      <a href="/activity" class={filter.kind === 'all' && filter.level === 'all' ? 'active' : ''}>
+        All
+      </a>
+      {KINDS.map((k) => (
+        <a
+          href={`/activity?kind=${k}${filter.level !== 'all' ? `&level=${filter.level}` : ''}`}
+          class={filter.kind === k ? 'active' : ''}
+          style={`--k: var(--k-${k})`}
+        >
+          <span class="kdot"></span>
+          {k}
+        </a>
+      ))}
+      <a
+        href={`/activity?level=problems${filter.kind !== 'all' ? `&kind=${filter.kind}` : ''}`}
+        class={`problems ${filter.level === 'problems' ? 'active' : ''}`}
+      >
+        problems only
+      </a>
+    </nav>
+
+    <div id="activity-table">
+      <ActivityTable rows={rows} repo={repo} />
+    </div>
+  </Layout>
+)
+
+export const ActivityTable: FC<{ rows: Record<string, unknown>[]; repo: string }> = ({
+  rows,
+  repo,
+}) =>
+  rows.length === 0 ? (
+    <Empty>Nothing matches this filter.</Empty>
+  ) : (
+    <Table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Kind</th>
+          <th>Target</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const kind = String(r.kind)
+          const level = String(r.level)
+          return (
+            <tr class={level === 'error' ? 'row-error' : level === 'warn' ? 'row-warn' : ''}>
               <td class="mono nowrap">{String(r.at).replace('T', ' ').slice(0, 19)}</td>
-              <td>{String(r.level)}</td>
-              <td>{String(r.kind)}</td>
+              <td class="nowrap">
+                <span class="kchip" style={`--k: var(--k-${kind}, var(--k-system))`}>
+                  <span class="kdot"></span>
+                  {kind}
+                </span>
+              </td>
               <td class="mono">
                 {r.stack ? `${String(r.stack)}${r.service ? `/${String(r.service)}` : ''}` : '—'}
               </td>
               <td>
-                {String(r.message)}
-                {r.detail ? <div class="detail">{String(r.detail)}</div> : null}
+                {linkify(String(r.message), repo)}
+                {r.detail ? <div class="detail">{linkify(String(r.detail), repo)}</div> : null}
               </td>
             </tr>
-          ))}
-        </tbody>
-      </Table>
-    )}
-  </Layout>
-)
+          )
+        })}
+      </tbody>
+    </Table>
+  )
+
+/**
+ * Turn `#123` into a link to the pull request. Event messages are written by the PR
+ * engine ("superseded by #41"), and a bare number there is a dead end otherwise.
+ */
+function linkify(text: string, repo: string): unknown {
+  const parts: unknown[] = []
+  const re = /(^|[^\w#])#(\d{1,6})\b/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    parts.push(text.slice(last, m.index + m[1]!.length))
+    parts.push(
+      <a href={`https://github.com/${repo}/pull/${m[2]}`} target="_blank" rel="noopener">
+        #{m[2]}
+      </a>,
+    )
+    last = m.index + m[0]!.length
+  }
+  if (parts.length === 0) return text
+  parts.push(text.slice(last))
+  return parts
+}

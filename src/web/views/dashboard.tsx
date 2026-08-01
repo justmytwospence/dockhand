@@ -14,6 +14,7 @@ export interface PendingRow {
   tier: string
   state: string
   detail: string | null
+  pr_number: number | null
 }
 
 export interface ScanInfo {
@@ -38,18 +39,10 @@ export const Dashboard: FC<{
   recent: Record<string, unknown>[]
   blackout: boolean
   scan: ScanInfo
-}> = ({ policyError, services, pending, recent, blackout, scan }) => {
+  repo: string
+}> = ({ policyError, services, pending, recent, blackout, scan, repo }) => {
   const watched = services.filter((s) => s.watched)
   const unwatchable = services.filter((s) => s.unwatchable)
-
-  const rolling = pending.filter((p) => p.detail === 'rolling')
-  const held = pending.filter((p) => p.state === 'held')
-  const review = pending.filter(
-    (p) => p.detail !== 'rolling' && p.state !== 'held' && p.tier !== 'auto',
-  )
-  const auto = pending.filter(
-    (p) => p.detail !== 'rolling' && p.state !== 'held' && p.tier === 'auto',
-  )
 
   return (
     <Layout title="Dashboard" path="/">
@@ -80,43 +73,24 @@ export const Dashboard: FC<{
       </section>
 
       <div class="scanbar">
-        <button hx-post="/scan" hx-target="#scan-status" hx-swap="innerHTML">
+        <button hx-post="/scan" hx-target="#scan-status" hx-swap="innerHTML" hx-disabled-elt="this">
           Scan now
         </button>
-        <span id="scan-status" hx-get="/scan/status" hx-trigger="load, every 10s">
+        <span id="scan-status" hx-get="/scan/status" hx-trigger="load">
           <ScanStatus scan={scan} />
         </span>
       </div>
 
-      <Section
-        title="Needs review"
-        caption="Majors, gated infrastructure, and anything else a human merges."
-        rows={review}
-        empty="Nothing waiting on you."
-      />
-
-      <Section
-        title="Held"
-        caption="Datastores. A tag bump alone cannot apply these — a postgres major refuses the old datadir — so each is a deliberate migration. Open a PR when you are ready to do one."
-        rows={held}
-        empty="No held updates."
-        action="open-pr"
-      />
-
-      <Section
-        title="Rolling tags moved"
-        caption="The tag still points somewhere new. Nothing to change in git; redeploy to adopt."
-        rows={rolling}
-        empty="No rolling images have moved."
-        action="dismiss"
-      />
-
-      <Section
-        title="Auto tier"
-        caption="WUD applies these itself overnight while both tools run; rows clear themselves once it does."
-        rows={auto}
-        empty="Nothing queued."
-      />
+      {/* Polls only while a scan is running: the status fragment emits #scan-running,
+          and the trigger filter checks for it, so an idle dashboard makes no requests. */}
+      <div
+        id="pending"
+        hx-get="/fragments/pending"
+        hx-trigger="every 10s [document.getElementById('scan-running')]"
+        hx-swap="innerHTML"
+      >
+        <PendingSections pending={pending} repo={repo} />
+      </div>
 
       <h2>Recent activity</h2>
       {recent.length === 0 ? (
@@ -127,7 +101,12 @@ export const Dashboard: FC<{
             {recent.map((r) => (
               <tr>
                 <td class="mono nowrap">{String(r.at).replace('T', ' ').slice(0, 19)}</td>
-                <td>{String(r.kind)}</td>
+                <td class="nowrap">
+                  <span class={`kchip`} style={`--k: var(--k-${String(r.kind)}, var(--k-system))`}>
+                    <span class="kdot"></span>
+                    {String(r.kind)}
+                  </span>
+                </td>
                 <td>{String(r.message)}</td>
               </tr>
             ))}
@@ -138,13 +117,59 @@ export const Dashboard: FC<{
   )
 }
 
+export const PendingSections: FC<{ pending: PendingRow[]; repo: string }> = ({ pending, repo }) => {
+  const rolling = pending.filter((p) => p.detail === 'rolling')
+  const held = pending.filter((p) => p.state === 'held')
+  const review = pending.filter(
+    (p) => p.detail !== 'rolling' && p.state !== 'held' && p.tier !== 'auto',
+  )
+  const auto = pending.filter(
+    (p) => p.detail !== 'rolling' && p.state !== 'held' && p.tier === 'auto',
+  )
+  return (
+    <>
+      <Section
+        title="Needs review"
+        caption="Majors, gated infrastructure, and anything else a human merges."
+        rows={review}
+        empty="Nothing waiting on you."
+        repo={repo}
+      />
+      <Section
+        title="Held"
+        caption="Datastores. A tag bump alone cannot apply these — a postgres major refuses the old datadir — so each is a deliberate migration. Open a PR when you are ready to do one."
+        rows={held}
+        empty="No held updates."
+        action="open-pr"
+        repo={repo}
+      />
+      <Section
+        title="Rolling tags moved"
+        caption="The tag still points somewhere new. Nothing to change in git; redeploy to adopt."
+        rows={rolling}
+        empty="No rolling images have moved."
+        action="dismiss"
+        repo={repo}
+      />
+      <Section
+        title="Applied automatically"
+        caption="These roll out on the nightly cycle without review; rows clear once the new version is running."
+        rows={auto}
+        empty="Nothing queued."
+        repo={repo}
+      />
+    </>
+  )
+}
+
 const Section: FC<{
   title: string
   caption: string
   rows: PendingRow[]
   empty: string
+  repo: string
   action?: 'open-pr' | 'dismiss'
-}> = ({ title, caption, rows, empty, action }) => (
+}> = ({ title, caption, rows, empty, action, repo }) => (
   <>
     <h2>
       {title} {rows.length > 0 && <span class="count">{rows.length}</span>}
@@ -156,45 +181,67 @@ const Section: FC<{
       <Table>
         <thead>
           <tr>
-            <th>Stack</th>
             <th>Service</th>
             <th>Change</th>
             <th>Kind</th>
+            <th>PR</th>
             {action && <th></th>}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr>
-              <td>{r.stack}</td>
-              <td>{r.service}</td>
-              <td class="mono">
-                {shorten(r.from_tag)} &rarr; {shorten(r.to_tag)}
+              <td class="nowrap">
+                <span class="svc-stack">{r.stack}</span>
+                <span class="svc-name">{r.service}</span>
+              </td>
+              <td>
+                {/* Native <details> so the toggle needs no JS; htmx fetches the diff
+                    once, on first open. */}
+                <details class="diffbox">
+                  <summary>
+                    <span class="mono">
+                      {shorten(r.from_tag)} &rarr; {shorten(r.to_tag)}
+                    </span>
+                  </summary>
+                  <div
+                    class="diff-body"
+                    hx-get={`/updates/${r.id}/diff`}
+                    hx-trigger="toggle once from:closest details"
+                    hx-swap="innerHTML"
+                  >
+                    <span class="sub">loading diff&hellip;</span>
+                  </div>
+                </details>
               </td>
               <td>
                 <span class={`pill ${MAGNITUDE_CLASS[r.magnitude] ?? 'muted'}`}>{r.magnitude}</span>
               </td>
+              <td class="nowrap">
+                {r.pr_number ? (
+                  <a
+                    class="prlink"
+                    href={`https://github.com/${repo}/pull/${r.pr_number}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    #{r.pr_number} &#8599;
+                  </a>
+                ) : (
+                  <span class="sub">&mdash;</span>
+                )}
+              </td>
               {action && (
                 <td>
-                  {action === 'open-pr' ? (
-                    <button
-                      class="linkish"
-                      hx-post={`/updates/${r.id}/open-pr`}
-                      hx-target="closest tr"
-                      hx-swap="outerHTML"
-                    >
-                      Open PR
-                    </button>
-                  ) : (
-                    <button
-                      class="linkish"
-                      hx-post={`/updates/${r.id}/dismiss`}
-                      hx-target="closest tr"
-                      hx-swap="outerHTML"
-                    >
-                      Dismiss
-                    </button>
-                  )}
+                  <button
+                    class="linkish"
+                    hx-post={`/updates/${r.id}/${action === 'open-pr' ? 'open-pr' : 'dismiss'}`}
+                    hx-target="closest tr"
+                    hx-swap="outerHTML"
+                    hx-disabled-elt="this"
+                  >
+                    {action === 'open-pr' ? 'Open PR' : 'Dismiss'}
+                  </button>
                 </td>
               )}
             </tr>
@@ -206,7 +253,15 @@ const Section: FC<{
 )
 
 export const ScanStatus: FC<{ scan: ScanInfo }> = ({ scan }) => {
-  if (scan.running) return <span class="sub">scanning&hellip;</span>
+  if (scan.running) {
+    // The id is the poll condition for the pending region -- present only while
+    // scanning, so nothing polls at rest.
+    return (
+      <span class="sub" id="scan-running" hx-get="/scan/status" hx-trigger="every 3s">
+        scanning&hellip;
+      </span>
+    )
+  }
   if (!scan.lastAt) return <span class="sub">never scanned</span>
   const counts = scan.counts
     ? Object.entries(scan.counts)

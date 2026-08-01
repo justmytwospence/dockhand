@@ -4,13 +4,31 @@ import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
 import { env, loadPolicy, inBlackout } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
-import { scanRepo } from '../compose/scan.ts'
-import { isScanning } from '../scan.ts'
+import { scanRepo, type ScannedService } from '../compose/scan.ts'
+import { buildUpdateDiff } from '../diff.ts'
+import { isScanning, scanOne } from '../scan.ts'
 import { runScanNow } from '../scheduler.ts'
-import { Dashboard, ScanStatus, type PendingRow, type ScanInfo } from './views/dashboard.tsx'
-import { ImagesPage } from './views/images.tsx'
-import { ActivityPage } from './views/activity.tsx'
+import {
+  Dashboard,
+  PendingSections,
+  ScanStatus,
+  type PendingRow,
+  type ScanInfo,
+} from './views/dashboard.tsx'
+import { DiffView } from './views/diff.tsx'
+import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
+import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
 import { SystemPage } from './views/system.tsx'
+
+const PENDING_SQL = `
+  SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
+         u.tier, u.state, u.detail, p.number AS pr_number
+  FROM updates u
+  LEFT JOIN pr_updates pu ON pu.update_id = u.id
+  LEFT JOIN prs p ON p.id = pu.pr_id AND p.state = 'open'
+  WHERE u.state IN ('detected','pr_open','held')
+  ORDER BY CASE u.magnitude WHEN 'major' THEN 0 WHEN 'minor' THEN 1
+                            WHEN 'patch' THEN 2 ELSE 3 END, u.stack, u.service`
 
 export function createApp(): Hono {
   const app = new Hono()
@@ -25,14 +43,7 @@ export function createApp(): Hono {
     const { policy, error } = loadPolicy()
     const db = getDb()
     const services = scanRepo(env.homelabRepo, policy.exclude_stacks)
-    const pending = db
-      .prepare(
-        `SELECT id, stack, service, image, from_tag, to_tag, magnitude, tier, state, detail
-         FROM updates WHERE state IN ('detected','pr_open','held')
-         ORDER BY CASE magnitude WHEN 'major' THEN 0 WHEN 'minor' THEN 1
-                                 WHEN 'patch' THEN 2 ELSE 3 END, stack, service`,
-      )
-      .all() as PendingRow[]
+    const pending = db.prepare(PENDING_SQL).all() as PendingRow[]
     const recent = db
       .prepare(`SELECT * FROM events ORDER BY at DESC LIMIT 10`)
       .all() as Record<string, unknown>[]
@@ -45,6 +56,32 @@ export function createApp(): Hono {
         recent,
         blackout: inBlackout(policy),
         scan: scanInfo(),
+        repo: env.githubRepo,
+      }) as string,
+    )
+  })
+
+  /** The pending region alone, so it can refresh itself while a scan runs. */
+  app.get('/fragments/pending', (c) => {
+    const pending = getDb().prepare(PENDING_SQL).all() as PendingRow[]
+    return c.html(PendingSections({ pending, repo: env.githubRepo }) as string)
+  })
+
+  /** The exact one-line change a PR would make, rendered on first expand. */
+  app.get('/updates/:id/diff', (c) => {
+    const id = Number(c.req.param('id'))
+    const result = buildUpdateDiff(id)
+    const pr = getDb()
+      .prepare(
+        `SELECT p.number FROM prs p JOIN pr_updates pu ON pu.pr_id = p.id
+         WHERE pu.update_id = ? AND p.state = 'open'`,
+      )
+      .get(id) as { number: number } | undefined
+    return c.html(
+      DiffView({
+        result,
+        prNumber: pr?.number ?? null,
+        prUrl: pr ? `https://github.com/${env.githubRepo}/pull/${pr.number}` : null,
       }) as string,
     )
   })
@@ -103,27 +140,60 @@ export function createApp(): Hono {
 
   app.get('/images', (c) => {
     const { policy } = loadPolicy()
-    const services = scanRepo(env.homelabRepo, policy.exclude_stacks)
-    const statuses = getDb()
-      .prepare(`SELECT stack, service, last_status, last_detail FROM images WHERE last_status IS NOT NULL`)
-      .all() as { stack: string; service: string; last_status: string; last_detail: string | null }[]
-    const statusMap = new Map(statuses.map((s) => [`${s.stack}/${s.service}`, s]))
-    return c.html(
-      ImagesPage({ services, filter: c.req.query('filter') ?? 'all', statusMap }) as string,
+    const filter = c.req.query('filter') ?? 'all'
+    const q = (c.req.query('q') ?? '').trim()
+    const statusMap = statuses()
+    const shown = filterServices(
+      scanRepo(env.homelabRepo, policy.exclude_stacks),
+      filter,
+      q,
+      statusMap,
     )
+    // htmx requests want just the table; a normal navigation wants the whole page.
+    if (c.req.header('hx-request')) {
+      return c.html(ImagesTable({ services: shown, statusMap }) as string)
+    }
+    return c.html(ImagesPage({ services: shown, filter, q, statusMap }) as string)
+  })
+
+  /** Re-check one service, so a label edit can be confirmed without a 150s sweep. */
+  app.post('/images/:stack/:service/check', async (c) => {
+    const { policy } = loadPolicy()
+    const stack = c.req.param('stack')
+    const service = c.req.param('service')
+    const svc = scanRepo(env.homelabRepo, policy.exclude_stacks).find(
+      (s) => s.stack === stack && s.service === service,
+    )
+    if (!svc) return c.html('<tr><td colspan="5" class="sub">no such service</td></tr>', 404)
+    if (svc.watched) await scanOne(svc, policy)
+    return c.html(ImageRow({ svc, status: statuses().get(`${stack}/${service}`) }) as string)
   })
 
   app.get('/activity', (c) => {
+    const kind = c.req.query('kind') ?? 'all'
+    const level = c.req.query('level') ?? 'all'
+    const where: string[] = []
+    const args: string[] = []
+    if ((KINDS as readonly string[]).includes(kind)) {
+      where.push('kind = ?')
+      args.push(kind)
+    }
+    if (level === 'problems') where.push(`level IN ('warn','error')`)
     const rows = getDb()
-      .prepare(`SELECT * FROM events ORDER BY at DESC LIMIT 200`)
-      .all() as Record<string, unknown>[]
-    return c.html(ActivityPage({ rows }) as string)
+      .prepare(
+        `SELECT * FROM events ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+         ORDER BY at DESC LIMIT 200`,
+      )
+      .all(...args) as Record<string, unknown>[]
+    if (c.req.header('hx-request')) {
+      return c.html(ActivityTable({ rows, repo: env.githubRepo }) as string)
+    }
+    return c.html(ActivityPage({ rows, filter: { kind, level }, repo: env.githubRepo }) as string)
   })
 
   app.get('/system', (c) => {
     const { policy, error } = loadPolicy()
-    const db = getDb()
-    const budgets = db.prepare(`SELECT * FROM budgets`).all() as Record<string, unknown>[]
+    const budgets = getDb().prepare(`SELECT * FROM budgets`).all() as Record<string, unknown>[]
     return c.html(
       SystemPage({
         policy,
@@ -137,6 +207,33 @@ export function createApp(): Hono {
   })
 
   return app
+}
+
+function statuses(): Map<string, StatusRow> {
+  const rows = getDb()
+    .prepare(
+      `SELECT stack, service, last_status, last_detail, constrained_from FROM images
+       WHERE last_status IS NOT NULL OR constrained_from IS NOT NULL`,
+    )
+    .all() as StatusRow[]
+  return new Map(rows.map((s) => [`${s.stack}/${s.service}`, s]))
+}
+
+function filterServices(
+  services: ScannedService[],
+  filter: string,
+  q: string,
+  statusMap: Map<string, StatusRow>,
+): ScannedService[] {
+  const needle = q.toLowerCase()
+  return services.filter((s) => {
+    if (filter === 'watched' && !s.watched) return false
+    if (filter === 'unlabelled' && (s.watched || s.unwatchable)) return false
+    if (filter === 'unwatchable' && !s.unwatchable) return false
+    if (filter === 'attention' && !statusMap.get(`${s.stack}/${s.service}`)?.last_status) return false
+    if (!needle) return true
+    return `${s.stack} ${s.service} ${s.imageRaw ?? ''}`.toLowerCase().includes(needle)
+  })
 }
 
 function scanInfo(): ScanInfo {

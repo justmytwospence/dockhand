@@ -203,6 +203,15 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     CREATE INDEX idx_updates_svc ON updates(stack, service, state);
   `,
   },
+  {
+    id: '003-constrained',
+    sql: `
+    -- A newer version exists but a deliberate tag.include pin suppressed it. Recorded
+    -- so the UI can say "constrained" rather than showing the service as current -- a
+    -- deliberate pin should look deliberate, not accidental.
+    ALTER TABLE images ADD COLUMN constrained_from TEXT;
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

@@ -8,82 +8,130 @@ const FILTERS = [
   ['watched', 'Watched'],
   ['unlabelled', 'Unlabelled'],
   ['unwatchable', 'Not watchable'],
+  ['attention', 'Needs attention'],
 ] as const
 
-interface StatusRow {
+export interface StatusRow {
   stack: string
   service: string
-  last_status: string
+  last_status: string | null
   last_detail: string | null
+  constrained_from: string | null
 }
 
 export const ImagesPage: FC<{
   services: ScannedService[]
   filter: string
+  q: string
   statusMap: Map<string, StatusRow>
-}> = ({ services, filter, statusMap }) => {
-  const shown = services.filter((s) => {
-    if (filter === 'watched') return s.watched
-    if (filter === 'unlabelled') return s.ref && !s.watched && !s.unwatchable
-    if (filter === 'unwatchable') return !!s.unwatchable
-    return true
-  })
+}> = ({ services, filter, q, statusMap }) => (
+  <Layout title="Images" path="/images">
+    <h2>Image inventory</h2>
+    <p class="sub">
+      Read directly from the compose files in the working tree &mdash; never from running
+      container labels, so a label edit takes effect on the next scan without recreating
+      anything.
+    </p>
 
-  return (
-    <Layout title="Images" path="/images">
-      <h2>Image inventory</h2>
-      <p class="sub">
-        Read directly from the compose files in the working tree &mdash; never from running
-        container labels, so a label edit takes effect without recreating anything.
-      </p>
+    <form class="imgfilters" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
       <nav class="filters">
         {FILTERS.map(([key, label]) => (
-          <a href={`/images?filter=${key}`} class={filter === key ? 'active' : ''}>
+          <label class={filter === key ? 'active' : ''}>
+            <input
+              type="radio"
+              name="filter"
+              value={key}
+              checked={filter === key}
+              hx-get="/images"
+              hx-target="#images-table"
+              hx-include="closest form"
+            />
             {label}
-          </a>
+          </label>
         ))}
       </nav>
-      {shown.length === 0 ? (
-        <Empty>Nothing matches this filter.</Empty>
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <th>Stack</th>
-              <th>Service</th>
-              <th>Image</th>
-              <th>Tag</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((s) => (
-              <tr>
-                <td>{s.stack}</td>
-                <td>{s.service}</td>
-                <td class="mono">{s.ref ? displayName(s.ref) : s.imageRaw ?? '—'}</td>
-                <td class="mono">{s.ref?.tag ?? '—'}</td>
-                <td>
-                  {(() => {
-                    const st = statusMap.get(`${s.stack}/${s.service}`)
-                    if (st) {
-                      return (
-                        <>
-                          <span class="pill err">{st.last_status}</span>
-                          {st.last_detail ? <div class="detail">{st.last_detail}</div> : null}
-                        </>
-                      )
-                    }
-                    if (s.unwatchable) return <span class="pill muted">{s.unwatchable}</span>
-                    if (s.watched) return <span class="pill ok">watched</span>
-                    return <span class="pill warn">unlabelled</span>
-                  })()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-    </Layout>
+      <input
+        type="search"
+        name="q"
+        value={q}
+        placeholder="filter by stack, service or image…"
+        hx-get="/images"
+        hx-target="#images-table"
+        hx-include="closest form"
+        hx-trigger="input changed delay:250ms, search"
+      />
+    </form>
+
+    <div id="images-table">
+      <ImagesTable services={services} statusMap={statusMap} />
+    </div>
+  </Layout>
+)
+
+export const ImagesTable: FC<{
+  services: ScannedService[]
+  statusMap: Map<string, StatusRow>
+}> = ({ services, statusMap }) =>
+  services.length === 0 ? (
+    <Empty>Nothing matches this filter.</Empty>
+  ) : (
+    <Table>
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Image</th>
+          <th>Tag</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {services.map((s) => (
+          <ImageRow svc={s} status={statusMap.get(`${s.stack}/${s.service}`)} />
+        ))}
+      </tbody>
+    </Table>
   )
-}
+
+export const ImageRow: FC<{ svc: ScannedService; status?: StatusRow }> = ({ svc, status }) => (
+  <tr id={`img-${svc.stack}-${svc.service}`}>
+    <td class="nowrap">
+      <span class="svc-stack">{svc.stack}</span>
+      <span class="svc-name">{svc.service}</span>
+    </td>
+    <td class="mono">{svc.ref ? displayName(svc.ref) : (svc.imageRaw ?? '—')}</td>
+    <td class="mono">{svc.ref?.tag ?? '—'}</td>
+    <td>
+      {status?.last_status ? (
+        <>
+          <span class="pill err">{status.last_status}</span>
+          {status.last_detail ? <div class="detail">{status.last_detail}</div> : null}
+        </>
+      ) : svc.unwatchable ? (
+        <span class="pill muted">{svc.unwatchable}</span>
+      ) : svc.watched ? (
+        <span class="pill ok">watched</span>
+      ) : (
+        <span class="pill warn">unlabelled</span>
+      )}
+      {status?.constrained_from ? (
+        <div class="detail">
+          pinned &mdash; <span class="mono">{status.constrained_from}</span> available
+        </div>
+      ) : null}
+    </td>
+    <td class="nowrap">
+      {svc.watched ? (
+        <button
+          class="linkish"
+          hx-post={`/images/${svc.stack}/${svc.service}/check`}
+          hx-target="closest tr"
+          hx-swap="outerHTML"
+          hx-disabled-elt="this"
+        >
+          Check now
+        </button>
+      ) : null}
+    </td>
+  </tr>
+)

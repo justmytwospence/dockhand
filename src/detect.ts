@@ -69,7 +69,7 @@ export async function detect(svc: ScannedService): Promise<Detection> {
     }
   }
 
-  const tagInclude = normaliseInclude(svc.tagInclude ?? svc.wud.tagInclude)
+  const tagInclude = normaliseInclude(svc.tagInclude)
 
   let tags: string[]
   let observed: TagInfo[] = []

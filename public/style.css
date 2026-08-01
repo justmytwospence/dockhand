@@ -13,6 +13,15 @@
      contents line up on every viewport. */
   --col: 1080px;
   --gutter: 1.5rem;
+
+  /* Event kinds. One hue each so the activity log is scannable by colour alone. */
+  --k-scan: #3b6fd4;
+  --k-policy: #8a5fd4;
+  --k-pr: #2f8f8f;
+  --k-analysis: #b07f2e;
+  --k-deploy: #2f6f57;
+  --k-sync: #4f8fb0;
+  --k-system: #8a8a84;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +35,14 @@
     --warn: #d8a33f;
     --error: #e2796c;
     --ok: #6fc09b;
+
+    --k-scan: #7ba0e8;
+    --k-policy: #b18ee8;
+    --k-pr: #5fbdbd;
+    --k-analysis: #d8a854;
+    --k-deploy: #6fc09b;
+    --k-sync: #7fbcd8;
+    --k-system: #a8a8a2;
   }
 }
 
@@ -408,4 +425,246 @@ button.linkish:hover {
 
 tr.dismissed td {
   color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ diffs */
+
+.diffbox summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.diffbox summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A disclosure caret drawn in CSS, so the row stays compact when collapsed. */
+.diffbox summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid var(--muted);
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform 0.12s ease;
+  flex: none;
+}
+
+.diffbox[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.diffbox summary:hover::before {
+  border-left-color: var(--accent);
+}
+
+.diff-body {
+  margin-top: 0.5rem;
+}
+
+.diff {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.diff-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  white-space: nowrap;
+}
+
+.diff-file {
+  font-weight: 600;
+}
+
+.diff-hunk {
+  color: var(--muted);
+}
+
+.dl {
+  display: flex;
+  white-space: pre;
+  border-left: 2px solid transparent;
+}
+
+.dl .ln {
+  flex: none;
+  width: 3.2em;
+  text-align: right;
+  padding-right: 0.6rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+.dl .mark {
+  flex: none;
+  width: 1.2em;
+  color: var(--muted);
+  user-select: none;
+}
+
+.dl .txt {
+  padding-right: 0.8rem;
+}
+
+.dl.del {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-left-color: var(--error);
+}
+
+.dl.del .mark {
+  color: var(--error);
+}
+
+.dl.add {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-left-color: var(--ok);
+}
+
+.dl.add .mark {
+  color: var(--ok);
+}
+
+.diff-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+/* --------------------------------------------------------- kinds + links */
+
+.kdot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--k, var(--k-system));
+  flex: none;
+}
+
+.kchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--k, var(--k-system));
+}
+
+.filters a .kdot {
+  margin-right: 0.05rem;
+}
+
+.filters a.problems.active {
+  color: var(--error);
+}
+
+a {
+  color: var(--accent);
+}
+
+.prlink {
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.prlink:hover {
+  text-decoration: underline;
+}
+
+/* Stack and service read as one identifier without needing two columns. */
+.svc-stack {
+  color: var(--muted);
+}
+
+.svc-stack::after {
+  content: "/";
+  margin: 0 0.15rem;
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------ image filters */
+
+.imgfilters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.6rem 0 1rem;
+}
+
+.imgfilters .filters {
+  margin: 0;
+}
+
+.imgfilters label {
+  color: var(--muted);
+  font-size: 0.92rem;
+  white-space: nowrap;
+  cursor: pointer;
+  padding-block: 0.35rem;
+}
+
+.imgfilters label.active {
+  color: var(--fg);
+  font-weight: 550;
+}
+
+.imgfilters label:hover {
+  color: var(--fg);
+}
+
+/* The radio itself is redundant once the label is styled as a tab. */
+.imgfilters label input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.imgfilters input[type="search"] {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.6rem;
+  min-width: 16rem;
+  flex: 1 1 16rem;
+}
+
+.imgfilters input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .imgfilters input[type="search"] {
+    min-width: 0;
+  }
+
+  .diff {
+    font-size: 0.74rem;
+  }
+
+  .dl .ln {
+    width: 2.6em;
+  }
 }
