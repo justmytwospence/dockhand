@@ -152,6 +152,57 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     );
   `,
   },
+  {
+    id: '002-digests-groups',
+    sql: `
+    -- Last-acknowledged digest for a rolling tag. Keyed by IMAGE, not service: huginn
+    -- runs huginn-single-process:latest twice, so one baseline serves both and movement
+    -- fans out per service at handling time.
+    --
+    -- Deliberately NOT tags_seen.digest: that column is refreshed as inventory on every
+    -- scan, which would silently advance the baseline and swallow the movement event. A
+    -- baseline may only advance when the digest checker acknowledges movement.
+    CREATE TABLE digest_baselines (
+      registry     TEXT NOT NULL,
+      repository   TEXT NOT NULL,
+      tag          TEXT NOT NULL,
+      digest       TEXT NOT NULL,
+      observed_at  TEXT NOT NULL,
+      checked_at   TEXT NOT NULL,
+      PRIMARY KEY (registry, repository, tag)
+    );
+
+    -- prs gains its own id plus group support, because one PR can carry several
+    -- updates: immich-server and immich-machine-learning must move together or Immich
+    -- runs version-skewed. Safe to drop and recreate -- no PR has ever been created.
+    DROP TABLE prs;
+    CREATE TABLE prs (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      number          INTEGER NOT NULL,
+      branch          TEXT NOT NULL,
+      -- The sha the tool itself last pushed. A remote branch past this means the user
+      -- edited it: it becomes user-owned and is never force-pushed again.
+      head_sha_pushed TEXT NOT NULL,
+      state           TEXT NOT NULL,          -- open | merged | closed
+      user_owned      INTEGER NOT NULL DEFAULT 0,
+      group_key       TEXT,                   -- null = singleton
+      created_at      TEXT NOT NULL,
+      merged_at       TEXT
+    );
+    CREATE TABLE pr_updates (
+      pr_id     INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
+      update_id INTEGER NOT NULL REFERENCES updates(id) ON DELETE CASCADE,
+      PRIMARY KEY (pr_id, update_id)
+    );
+
+    -- Latest named non-update outcome per service, so "needs a human" states are visible
+    -- on the images page without log spelunking.
+    ALTER TABLE images ADD COLUMN last_status TEXT;
+    ALTER TABLE images ADD COLUMN last_detail TEXT;
+
+    CREATE INDEX idx_updates_svc ON updates(stack, service, state);
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

@@ -31,6 +31,10 @@ const lastRequestAt = new Map<string, number>()
  *  a rate limiter during a 144-image scan. */
 const MIN_SPACING_MS = 120
 
+/** Per-request ceiling. Generous enough for a slow registry, short enough that a dead
+ *  connection cannot hold the nightly scan open forever. */
+const REQUEST_TIMEOUT_MS = 30_000
+
 async function pace(host: string): Promise<void> {
   const last = lastRequestAt.get(host) ?? 0
   const wait = last + MIN_SPACING_MS - Date.now()
@@ -89,7 +93,8 @@ export async function registryFetch(url: string, opts: FetchOpts = {}): Promise<
   if (tok && tok.expiresAt > Date.now()) headers.authorization = `Bearer ${tok.token}`
 
   await pace(host)
-  let res = await fetch(url, { method, headers, redirect: 'follow' })
+  // A hung connection must cost one image 30s, not stall the entire serial scan.
+  let res = await fetch(url, { method, headers, redirect: 'follow', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
 
   if (res.status === 401) {
     const challenge = res.headers.get('www-authenticate')
@@ -98,14 +103,18 @@ export async function registryFetch(url: string, opts: FetchOpts = {}): Promise<
       tokenCache.set(scopeKey, token)
       headers.authorization = `Bearer ${token.token}`
       await pace(host)
-      res = await fetch(url, { method, headers, redirect: 'follow' })
+      res = await fetch(url, { method, headers, redirect: 'follow', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     }
   }
 
   recordHubHeaders(host, res)
 
   if (res.status === 429) {
-    throw new RegistryError(`rate limited by ${host}`, 429)
+    const retry = res.headers.get('retry-after')
+    throw new RegistryError(
+      `rate limited by ${host}${retry ? ` (retry after ${retry}s)` : ''}`,
+      429,
+    )
   }
   return res
 }
@@ -136,7 +145,7 @@ async function acquireToken(
   }
 
   await pace(u.host)
-  const res = await fetch(u, { headers })
+  const res = await fetch(u, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
   if (!res.ok) return null
   const body = (await res.json()) as { token?: string; access_token?: string; expires_in?: number }
   const token = body.token ?? body.access_token

@@ -28,7 +28,10 @@ export interface SelectOptions {
  */
 export type Comparison =
   | { status: 'update'; tag: string; magnitude: Magnitude }
-  | { status: 'up-to-date' }
+  /** `constrainedFrom` names a newer tag that a `tag.include` refinement suppressed --
+   *  e.g. postgres pinned inside `^16\.` while 18 exists. Purely informational, so a
+   *  deliberate constraint stays visible instead of looking like genuine currency. */
+  | { status: 'up-to-date'; constrainedFrom?: string }
   /** The pinned tag does not parse under its declared pattern -- wrong or missing
    *  `dockhand.pattern`, or the operator moved the service onto a different tag series. */
   | { status: 'unparseable-current'; detail: string }
@@ -79,7 +82,22 @@ export function selectUpdate(opts: SelectOptions): Comparison {
     if (!best || compareTags(parsed, best) > 0) best = parsed
   }
 
-  if (!best) return { status: 'up-to-date' }
+  if (!best) {
+    // Nothing newer passed the refinement. Check whether the refinement is what
+    // suppressed it, so the UI can say "constrained" rather than "up to date".
+    if (include) {
+      let unconstrained: ParsedTag | null = null
+      for (const tag of availableTags) {
+        const parsed = parseTag(tag, kind, regex)
+        if (!parsed) continue
+        if (parsed.variant !== current.variant) continue
+        if (compareTags(parsed, current) <= 0) continue
+        if (!unconstrained || compareTags(parsed, unconstrained) > 0) unconstrained = parsed
+      }
+      if (unconstrained) return { status: 'up-to-date', constrainedFrom: unconstrained.raw }
+    }
+    return { status: 'up-to-date' }
+  }
   return { status: 'update', tag: best.raw, magnitude: classify(current, best, kind) }
 }
 

@@ -1,6 +1,12 @@
 import { env } from './config.ts'
 import type { ScannedService } from './compose/scan.ts'
-import { listTags, headDigest, TagListTooLarge, RepositoryNotFound } from './registry/index.ts'
+import {
+  listTags,
+  headDigest,
+  TagListTooLarge,
+  RepositoryNotFound,
+  type TagInfo,
+} from './registry/index.ts'
 import { probeByReleases } from './registry/probe.ts'
 import { resolveSource, guessFromImagePath } from './resolver/index.ts'
 import { selectUpdate, type Comparison } from './versions/compare.ts'
@@ -14,8 +20,8 @@ import { inferPattern, isPatternKind, type PatternKind } from './versions/patter
  * this both took the shape of an unrelated failure disguising itself as "current".
  */
 export type Detection =
-  | { status: 'update'; tag: string; magnitude: string; via: Source }
-  | { status: 'up-to-date'; via: Source }
+  | { status: 'update'; tag: string; magnitude: string; via: Source; observed: TagInfo[] }
+  | { status: 'up-to-date'; via: Source; observed: TagInfo[]; constrainedFrom?: string }
   /** Rolling or digest-pinned: compare digests, not tag strings. */
   | { status: 'digest-watch'; currentDigest: string | null }
   /** No `dockhand.pattern` label and none could be inferred -- needs a human. */
@@ -66,9 +72,11 @@ export async function detect(svc: ScannedService): Promise<Detection> {
   const tagInclude = normaliseInclude(svc.tagInclude ?? svc.wud.tagInclude)
 
   let tags: string[]
+  let observed: TagInfo[] = []
   let via: Source = 'registry'
   try {
-    tags = (await listTags(ref.registry, ref.repository)).map((t) => t.tag)
+    observed = await listTags(ref.registry, ref.repository)
+    tags = observed.map((t) => t.tag)
   } catch (err) {
     if (err instanceof RepositoryNotFound) {
       return {
@@ -77,38 +85,51 @@ export async function detect(svc: ScannedService): Promise<Detection> {
       }
     }
     if (err instanceof TagListTooLarge) {
-      // The repository tags every commit and PR. Ask the source project what it released
-      // instead, and confirm each candidate with a HEAD.
-      const resolved = await resolveSource({
-        registry: ref.registry,
-        repository: ref.repository,
-        tag: ref.tag,
-        sourceLabel: svc.sourceLabel,
-      })
-      const sourceRepo = resolved.sourceRepo ?? guessFromImagePath(ref.registry, ref.repository)
-      if (!sourceRepo) {
+      // The repository tags every commit and PR (immich-machine-learning is past
+      // 148,000 tags). Ask the source project what it released instead, and confirm
+      // each candidate with a HEAD.
+      //
+      // This whole fallback runs INSIDE a catch block, so it needs its own guard --
+      // resolveSource and probeByReleases both make network calls, and an exception
+      // from either would otherwise escape detect() entirely and abort the scan.
+      try {
+        const resolved = await resolveSource({
+          registry: ref.registry,
+          repository: ref.repository,
+          tag: ref.tag,
+          sourceLabel: svc.sourceLabel,
+        })
+        const sourceRepo = resolved.sourceRepo ?? guessFromImagePath(ref.registry, ref.repository)
+        if (!sourceRepo) {
+          return {
+            status: 'unresolvable',
+            detail:
+              `${err.message}, and no source repo is known to probe releases from -- ` +
+              `add a dockhand.source label`,
+          }
+        }
+        const probe = await probeByReleases({
+          registry: ref.registry,
+          repository: ref.repository,
+          currentTag: ref.tag,
+          sourceRepo,
+          githubToken: env.githubToken,
+        })
+        if (probe.tags.length <= 1) {
+          return {
+            status: 'unresolvable',
+            detail: `${err.message}; probing ${sourceRepo} releases confirmed no image tags`,
+          }
+        }
+        observed = probe.tags.map((tag) => ({ tag }))
+        tags = probe.tags
+        via = 'releases'
+      } catch (fallbackErr) {
         return {
-          status: 'unresolvable',
-          detail:
-            `${err.message}, and no source repo is known to probe releases from -- ` +
-            `add a dockhand.source label`,
+          status: 'error',
+          detail: `release probing failed: ${(fallbackErr as Error).message}`,
         }
       }
-      const probe = await probeByReleases({
-        registry: ref.registry,
-        repository: ref.repository,
-        currentTag: ref.tag,
-        sourceRepo,
-        githubToken: env.githubToken,
-      })
-      if (probe.tags.length <= 1) {
-        return {
-          status: 'unresolvable',
-          detail: `${err.message}; probing ${sourceRepo} releases confirmed no image tags`,
-        }
-      }
-      tags = probe.tags
-      via = 'releases'
     } else {
       return { status: 'error', detail: (err as Error).message }
     }
@@ -124,9 +145,9 @@ export async function detect(svc: ScannedService): Promise<Detection> {
 
   switch (cmp.status) {
     case 'update':
-      return { status: 'update', tag: cmp.tag, magnitude: cmp.magnitude, via }
+      return { status: 'update', tag: cmp.tag, magnitude: cmp.magnitude, via, observed }
     case 'up-to-date':
-      return { status: 'up-to-date', via }
+      return { status: 'up-to-date', via, observed, constrainedFrom: cmp.constrainedFrom }
     case 'unparseable-current':
       return { status: 'unparseable', detail: cmp.detail }
     case 'bad-refinement':

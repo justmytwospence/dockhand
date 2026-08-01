@@ -88,6 +88,14 @@ const PolicySchema = z.object({
       monthly_budget_usd: z.number().positive().default(10),
     })
     .prefault({}),
+  prs: z
+    .object({
+      // wud-coexist: only handle what WUD's auto trigger never touches (majors,
+      // digests, non-auto tiers) so the two tools cannot contend for the same file.
+      // Switch to `full` when WUD retires at M6.
+      scope: z.enum(['wud-coexist', 'full']).default('wud-coexist'),
+    })
+    .prefault({}),
   deploy: z
     .object({
       serialize: z.boolean().default(true),

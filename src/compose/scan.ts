@@ -33,6 +33,10 @@ export interface ScannedService {
   sourceLabel: string | null
   claudeLabel: string | null
   deployLabel: string | null
+  /** `dockhand.pr: on-request` -- detected but never auto-PR'd; the operator opens it. */
+  prLabel: string | null
+  /** `dockhand.group: <name>` -- forces services into one PR when the heuristic misses. */
+  groupLabel: string | null
   /** wud.* equivalents, used by the migration script and the parity report. */
   wud: { watch: string | null; tagInclude: string | null; gated: boolean; link: string | null }
 }
@@ -116,6 +120,8 @@ export function scanComposeFile(repoRoot: string, file: string, excludeStacks: s
     const sourceLabel = labels['dockhand.source'] ?? null
     const claudeLabel = labels['dockhand.claude'] ?? null
     const deployLabel = labels['dockhand.deploy'] ?? null
+    const prLabel = labels['dockhand.pr'] ?? null
+    const groupLabel = labels['dockhand.group'] ?? null
     const watchLabel = labels['dockhand.watch'] ?? null
 
     let unwatchable: UnwatchableReason | null = null
@@ -148,6 +154,8 @@ export function scanComposeFile(repoRoot: string, file: string, excludeStacks: s
       sourceLabel,
       claudeLabel,
       deployLabel,
+      prLabel,
+      groupLabel,
       wud: {
         watch: labels['wud.watch'] ?? null,
         tagInclude: labels['wud.tag.include'] ?? null,

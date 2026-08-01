@@ -1,5 +1,6 @@
 import { loadPolicy } from './config.ts'
 import { getDb, logEvent } from './db.ts'
+import { startScheduler } from './scheduler.ts'
 import { startServer } from './web/server.ts'
 
 function main(): void {
@@ -16,9 +17,10 @@ function main(): void {
   })
 
   startServer()
+  startScheduler()
 
-  // The scheduler (registry scan, sync loop, deploy queue) lands in M1/M2. Nothing here
-  // writes to git or Docker yet -- M0 is deliberately read-only.
+  // The git sync loop and deploy queue land in M2/M4. Scanning is registry-read-only:
+  // nothing here writes to git or Docker.
 }
 
 for (const sig of ['SIGTERM', 'SIGINT'] as const) {

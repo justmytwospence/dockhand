@@ -1,3 +1,4 @@
+import { getDb } from '../db.ts'
 import { registryFetch } from './http.ts'
 
 /**
@@ -65,12 +66,26 @@ export async function fetchReleases(
   return body.filter((r) => !r.draft && !r.prerelease)
 }
 
-/** True when the tag resolves in the registry. HEAD only -- never billed. */
+/**
+ * True when the tag resolves in the registry. HEAD only -- never billed against the
+ * Docker Hub pull budget.
+ *
+ * Confirmed tags are remembered in `tags_seen`, and that cache is consulted first. A
+ * published tag never stops existing, so a positive answer is permanently valid, and
+ * without this every nightly scan would re-HEAD ~40 releases per pathological
+ * repository -- which is exactly how the second scan of the day got rate-limited by
+ * ghcr.io. Negative answers are NOT cached: a release can gain an image tag later.
+ */
 export async function tagExists(
   registry: string,
   repository: string,
   tag: string,
 ): Promise<boolean> {
+  const known = getDb()
+    .prepare(`SELECT 1 AS hit FROM tags_seen WHERE registry = ? AND repository = ? AND tag = ?`)
+    .get(registry, repository, tag) as { hit: number } | undefined
+  if (known) return true
+
   const host = registry === 'docker.io' ? 'registry-1.docker.io' : registry
   try {
     const res = await registryFetch(`https://${host}/v2/${repository}/manifests/${tag}`, {
@@ -82,6 +97,16 @@ export async function tagExists(
         'application/vnd.docker.distribution.manifest.v2+json',
       ].join(','),
     })
+    if (res.ok) {
+      getDb()
+        .prepare(
+          `INSERT INTO tags_seen (registry, repository, tag, digest, published_at, first_seen_at)
+           VALUES (?, ?, ?, ?, NULL, ?)
+           ON CONFLICT(registry, repository, tag) DO UPDATE SET
+             digest = COALESCE(excluded.digest, tags_seen.digest)`,
+        )
+        .run(registry, repository, tag, res.headers.get('docker-content-digest'), new Date().toISOString())
+    }
     return res.ok
   } catch {
     return false

@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import { Layout, Banner, Empty, Table } from './layout.tsx'
 import { env } from '../../config.ts'
+import type { ScanInfo } from './dashboard.tsx'
 
 export const SystemPage: FC<{
   policy: Policy
@@ -9,7 +10,8 @@ export const SystemPage: FC<{
   budgets: Record<string, unknown>[]
   version: string
   blackout: boolean
-}> = ({ policy, policyError, budgets, version, blackout }) => (
+  scan: ScanInfo
+}> = ({ policy, policyError, budgets, version, blackout, scan }) => (
   <Layout title="System" path="/system">
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
@@ -58,6 +60,30 @@ export const SystemPage: FC<{
         <tr>
           <th>excluded stacks</th>
           <td class="mono">{policy.exclude_stacks.join(', ')}</td>
+        </tr>
+      </tbody>
+    </Table>
+
+    <h2>Last scan</h2>
+    <Table kv>
+      <tbody>
+        <tr>
+          <th>ran</th>
+          <td class="mono">{scan.lastAt ?? 'never'}</td>
+        </tr>
+        <tr>
+          <th>duration</th>
+          <td class="mono">{scan.durationS !== null ? `${scan.durationS}s` : '—'}</td>
+        </tr>
+        <tr>
+          <th>outcomes</th>
+          <td class="mono">
+            {scan.counts
+              ? Object.entries(scan.counts)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join('  ')
+              : '—'}
+          </td>
         </tr>
       </tbody>
     </Table>
