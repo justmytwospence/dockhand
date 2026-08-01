@@ -94,6 +94,13 @@ const PolicySchema = z.object({
       // digests, non-auto tiers) so the two tools cannot contend for the same file.
       // Switch to `full` when WUD retires at M6.
       scope: z.enum(['wud-coexist', 'full']).default('wud-coexist'),
+      // Ceiling on simultaneously open pull requests. A backlog of 21 arriving at once
+      // is not a review queue, it is a wall -- and every one of them would need
+      // rebasing as the others merge. New PRs open as older ones are merged or closed.
+      max_open: z.number().int().positive().default(5),
+      // false parks the engine entirely: updates are still detected and shown, but
+      // nothing is pushed and no pull request is created.
+      enabled: z.boolean().default(true),
     })
     .prefault({}),
   deploy: z

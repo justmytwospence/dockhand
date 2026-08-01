@@ -1,6 +1,8 @@
 import { Cron } from 'croner'
 import { env, inBlackout, loadPolicy } from './config.ts'
 import { logEvent } from './db.ts'
+import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
+import { runPrPass } from './gitops/pr.ts'
 import { runScan } from './scan.ts'
 
 /**
@@ -17,6 +19,44 @@ let deferTimer: NodeJS.Timeout | null = null
 
 export function startScheduler(): void {
   schedule()
+  startPrLoop()
+}
+
+/**
+ * The pull-request loop: notice merges, then open whatever is newly eligible.
+ *
+ * Self-rescheduling rather than a fixed interval, because the cadence depends on
+ * whether anything is open -- a minute while PRs are in flight, ten when idle.
+ */
+function startPrLoop(): void {
+  const tick = async (): Promise<void> => {
+    try {
+      const { policy } = loadPolicy()
+      if (policy.prs.enabled && !inBlackout(policy)) {
+        await pollPrs()
+        const result = await runPrPass()
+        if (result.paused) {
+          logEvent({
+            level: 'info',
+            kind: 'pr',
+            message: 'pull request pass skipped',
+            detail: result.paused,
+          })
+        }
+      }
+    } catch (err) {
+      logEvent({
+        level: 'error',
+        kind: 'pr',
+        message: 'pull request loop failed',
+        detail: (err as Error).message,
+      })
+    } finally {
+      setTimeout(() => void tick(), pollIntervalMs()).unref?.()
+    }
+  }
+  // Give the first scan a moment before touching git.
+  setTimeout(() => void tick(), 20_000).unref?.()
 }
 
 function schedule(): void {
