@@ -30,8 +30,16 @@ export async function pollPrs(): Promise<PollResult> {
   if (!env.githubToken) return out
 
   const open = getDb()
-    .prepare(`SELECT id, number, branch, group_key, head_sha_pushed FROM prs WHERE state = 'open'`)
-    .all() as { id: number; number: number; branch: string; head_sha_pushed: string }[]
+    .prepare(
+      `SELECT id, number, branch, group_key, head_sha_pushed, scope FROM prs WHERE state = 'open'`,
+    )
+    .all() as {
+    id: number
+    number: number
+    branch: string
+    head_sha_pushed: string
+    scope: string
+  }[]
   if (open.length === 0) return out
 
   const [owner, repo] = env.githubRepo.split('/') as [string, string]
@@ -55,6 +63,7 @@ export async function pollPrs(): Promise<PollResult> {
     // From then on it is theirs: never force-pushed, never regenerated.
     if (data.head.sha !== pr.head_sha_pushed) {
       getDb().prepare(`UPDATE prs SET user_owned = 1 WHERE id = ?`).run(pr.id)
+      if (data.state === 'open') await classifyScope(pr.id, pr.number, pr.scope)
     }
 
     if (data.state === 'open') continue
@@ -69,6 +78,57 @@ export async function pollPrs(): Promise<PollResult> {
   }
 
   return out
+}
+
+/**
+ * Does this pull request still contain only the image-tag change dockhand wrote?
+ *
+ * Called when a branch's head has moved past what dockhand pushed. Some updates
+ * genuinely require more than a tag bump -- an upstream that renames its image, say --
+ * and a branch carrying that work must be visibly different from a clean bump, because
+ * nothing has reviewed the extra changes.
+ *
+ * Errs toward `modified`: mislabelling an edited PR as clean is the expensive direction,
+ * since auto-merge will one day trust this field.
+ */
+export function classifyPatch(
+  files: { filename: string; patch?: string }[],
+  truncated: boolean,
+): 'tag-only' | 'modified' {
+  if (truncated) return 'modified'
+  for (const f of files) {
+    if (!f.filename.endsWith('docker-compose.yaml')) return 'modified'
+    for (const line of (f.patch ?? '').split('\n')) {
+      if (!/^[+-]/.test(line) || /^(\+\+\+|---)/.test(line)) continue
+      // Same test the editor and the repo's own commit script use.
+      if (!/^[+-]\s*image:\s/.test(line)) return 'modified'
+    }
+  }
+  return 'tag-only'
+}
+
+async function classifyScope(prId: number, number: number, was: string): Promise<void> {
+  const [owner, repo] = env.githubRepo.split('/') as [string, string]
+  let scope: 'tag-only' | 'modified'
+  try {
+    const res = await gh().rest.pulls.listFiles({ owner, repo, pull_number: number, per_page: 100 })
+    scope = classifyPatch(res.data, res.data.length >= 100)
+  } catch {
+    // Unknown is not the same as clean; leave whatever was there rather than guessing.
+    return
+  }
+  if (scope === was) return
+
+  getDb().prepare(`UPDATE prs SET scope = ? WHERE id = ?`).run(scope, prId)
+  logEvent({
+    level: 'info',
+    kind: 'pr',
+    message:
+      scope === 'modified'
+        ? `#${number} now contains changes beyond the image tag`
+        : `#${number} is back to an image-tag change only`,
+    detail: scope === 'modified' ? 'it will always need a human to merge' : undefined,
+  })
 }
 
 async function onMerged(prId: number, number: number): Promise<void> {

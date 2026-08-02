@@ -212,6 +212,23 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     ALTER TABLE images ADD COLUMN constrained_from TEXT;
   `,
   },
+  {
+    id: '004-pr-scope',
+    sql: `
+    -- Whether a pull request still contains only the image-tag change dockhand wrote.
+    -- 'tag-only' | 'modified'.
+    --
+    -- Every dockhand-authored PR starts tag-only by construction (the editor refuses to
+    -- commit anything else), so the default backfills existing rows correctly. It flips
+    -- to 'modified' when a human pushes to the branch -- which some updates genuinely
+    -- require, e.g. an upstream that renames its image.
+    --
+    -- LOAD-BEARING FOR AUTO-MERGE: when that lands, the predicate must require
+    -- scope = 'tag-only' in addition to canAutoMerge(). An edited branch contains work
+    -- no policy or changelog verdict ever evaluated, so it always needs a human.
+    ALTER TABLE prs ADD COLUMN scope TEXT NOT NULL DEFAULT 'tag-only';
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

@@ -574,13 +574,12 @@ a {
   color: var(--accent);
 }
 
-.prlink {
-  font-size: 0.85rem;
+.ext {
   text-decoration: none;
   white-space: nowrap;
 }
 
-.prlink:hover {
+.ext:hover {
   text-decoration: underline;
 }
 
@@ -666,5 +665,40 @@ button[disabled] {
 
   .dl .ln {
     width: 2.6em;
+  }
+}
+
+/* --------------------------------------------------- pr scope + link rows */
+
+.pill.scope {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+}
+
+.scopefilters {
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+
+.filters-note {
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.diff-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+}
+
+.diff-links:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .filters-note {
+    display: none;
   }
 }

@@ -6,6 +6,8 @@ import { env, loadPolicy, inBlackout } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { scanRepo, type ScannedService } from '../compose/scan.ts'
 import { buildUpdateDiff } from '../diff.ts'
+import { parseImageRef } from '../images/ref.ts'
+import { refLinks } from '../links.ts'
 import { isScanning, scanOne } from '../scan.ts'
 import { runScanNow } from '../scheduler.ts'
 import {
@@ -23,7 +25,7 @@ import { SystemPage } from './views/system.tsx'
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
          u.tier, u.state, u.detail, p.number AS pr_number,
-         v.recommendation, v.confidence
+         v.recommendation, v.confidence, p.scope AS pr_scope
   FROM updates u
   LEFT JOIN pr_updates pu ON pu.update_id = u.id
   LEFT JOIN prs p ON p.id = pu.pr_id AND p.state = 'open'
@@ -66,25 +68,45 @@ export function createApp(): Hono {
 
   /** The pending region alone, so it can refresh itself while a scan runs. */
   app.get('/fragments/pending', (c) => {
-    const pending = getDb().prepare(PENDING_SQL).all() as PendingRow[]
-    return c.html(PendingSections({ pending, repo: env.githubRepo }) as string)
+    const scopeFilter = c.req.query('prscope') ?? 'all'
+    const pending = filterByScope(
+      getDb().prepare(PENDING_SQL).all() as PendingRow[],
+      scopeFilter,
+    )
+    return c.html(
+      PendingSections({ pending, repo: env.githubRepo, scopeFilter }) as string,
+    )
   })
 
   /** The exact one-line change a PR would make, rendered on first expand. */
   app.get('/updates/:id/diff', (c) => {
     const id = Number(c.req.param('id'))
     const result = buildUpdateDiff(id)
-    const pr = getDb()
+    const db = getDb()
+    const pr = db
       .prepare(
-        `SELECT p.number FROM prs p JOIN pr_updates pu ON pu.pr_id = p.id
+        `SELECT p.number, p.scope FROM prs p JOIN pr_updates pu ON pu.pr_id = p.id
          WHERE pu.update_id = ? AND p.state = 'open'`,
       )
-      .get(id) as { number: number } | undefined
+      .get(id) as { number: number; scope: string } | undefined
+
+    // Links point at the TARGET tag: this panel is where the merge decision happens.
+    const row = db
+      .prepare(
+        `SELECT u.image, u.to_tag, r.source_url FROM updates u
+         JOIN images i ON i.stack = u.stack AND i.service = u.service
+         LEFT JOIN resolutions r ON r.registry = i.registry AND r.repository = i.repository
+         WHERE u.id = ?`,
+      )
+      .get(id) as { image: string; to_tag: string; source_url: string | null } | undefined
+
     return c.html(
       DiffView({
         result,
+        links: row ? refLinks(parseImageRef(row.image), row.to_tag, row.source_url) : undefined,
         prNumber: pr?.number ?? null,
         prUrl: pr ? `https://github.com/${env.githubRepo}/pull/${pr.number}` : null,
+        prScope: pr?.scope ?? null,
       }) as string,
     )
   })
@@ -215,8 +237,11 @@ export function createApp(): Hono {
 function statuses(): Map<string, StatusRow> {
   const rows = getDb()
     .prepare(
-      `SELECT stack, service, last_status, last_detail, constrained_from FROM images
-       WHERE last_status IS NOT NULL OR constrained_from IS NOT NULL`,
+      // One join for every row's source repo, rather than a lookup per rendered cell.
+      `SELECT i.stack, i.service, i.last_status, i.last_detail, i.constrained_from,
+              r.source_url
+       FROM images i
+       LEFT JOIN resolutions r ON r.registry = i.registry AND r.repository = i.repository`,
     )
     .all() as StatusRow[]
   return new Map(rows.map((s) => [`${s.stack}/${s.service}`, s]))
@@ -237,6 +262,16 @@ function filterServices(
     if (!needle) return true
     return `${s.stack} ${s.service} ${s.imageRaw ?? ''}`.toLowerCase().includes(needle)
   })
+}
+
+/**
+ * Rows without a pull request are never "edited" -- there is nothing to have edited --
+ * so they stay visible under both All and Tag only.
+ */
+function filterByScope(rows: PendingRow[], filter: string): PendingRow[] {
+  if (filter === 'edited') return rows.filter((r) => r.pr_scope === 'modified')
+  if (filter === 'tag-only') return rows.filter((r) => r.pr_scope !== 'modified')
+  return rows
 }
 
 function scanInfo(): ScanInfo {

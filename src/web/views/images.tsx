@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx'
 import type { ScannedService } from '../../compose/scan.ts'
 import { Layout, Empty, Table } from './layout.tsx'
 import { displayName } from '../../images/ref.ts'
+import { refLinks } from '../../links.ts'
 
 const FILTERS = [
   ['all', 'All'],
@@ -17,6 +18,7 @@ export interface StatusRow {
   last_status: string | null
   last_detail: string | null
   constrained_from: string | null
+  source_url?: string | null
 }
 
 export const ImagesPage: FC<{
@@ -99,8 +101,34 @@ export const ImageRow: FC<{ svc: ScannedService; status?: StatusRow }> = ({ svc,
       <span class="svc-stack">{svc.stack}</span>
       <span class="svc-name">{svc.service}</span>
     </td>
-    <td class="mono">{svc.ref ? displayName(svc.ref) : (svc.imageRaw ?? '—')}</td>
-    <td class="mono">{svc.ref?.tag ?? '—'}</td>
+    <td class="mono">
+      {(() => {
+        if (!svc.ref) return svc.imageRaw ?? '—'
+        const l = refLinks(svc.ref, svc.ref.tag, status?.source_url ?? null)
+        const name = displayName(svc.ref)
+        return l.image ? (
+          <a class="ext" href={l.image} target="_blank" rel="noopener">
+            {name}
+          </a>
+        ) : (
+          name
+        )
+      })()}
+    </td>
+    <td class="mono">
+      {(() => {
+        if (!svc.ref?.tag) return '—'
+        const l = refLinks(svc.ref, svc.ref.tag, status?.source_url ?? null)
+        const href = l.tag ?? l.releases
+        return href ? (
+          <a class="ext" href={href} target="_blank" rel="noopener">
+            {svc.ref.tag}
+          </a>
+        ) : (
+          svc.ref.tag
+        )
+      })()}
+    </td>
     <td>
       {status?.last_status ? (
         <>

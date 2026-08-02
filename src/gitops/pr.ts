@@ -296,8 +296,10 @@ function recordPr(opts: {
   db.transaction(() => {
     const info = db
       .prepare(
-        `INSERT INTO prs (number, branch, head_sha_pushed, state, group_key, created_at)
-         VALUES (?, ?, ?, 'open', ?, ?)`,
+        // Explicitly tag-only: the editor's gates guarantee the commit touched nothing
+        // else. A compose-editing feature would set 'modified' here instead.
+        `INSERT INTO prs (number, branch, head_sha_pushed, state, group_key, scope, created_at)
+         VALUES (?, ?, ?, 'open', ?, 'tag-only', ?)`,
       )
       .run(opts.number, opts.branch, opts.sha, opts.groupKey, now)
     const link = db.prepare(`INSERT INTO pr_updates (pr_id, update_id) VALUES (?, ?)`)

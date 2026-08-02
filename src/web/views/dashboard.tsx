@@ -17,6 +17,7 @@ export interface PendingRow {
   pr_number: number | null
   recommendation: string | null
   confidence: string | null
+  pr_scope: string | null
 }
 
 export interface ScanInfo {
@@ -125,7 +126,17 @@ export const Dashboard: FC<{
   )
 }
 
-export const PendingSections: FC<{ pending: PendingRow[]; repo: string }> = ({ pending, repo }) => {
+export const SCOPE_FILTERS = [
+  ['all', 'All'],
+  ['tag-only', 'Tag only'],
+  ['edited', 'Edited'],
+] as const
+
+export const PendingSections: FC<{
+  pending: PendingRow[]
+  repo: string
+  scopeFilter?: string
+}> = ({ pending, repo, scopeFilter = 'all' }) => {
   const rolling = pending.filter((p) => p.detail === 'rolling')
   const held = pending.filter((p) => p.state === 'held')
   const review = pending.filter(
@@ -134,8 +145,27 @@ export const PendingSections: FC<{ pending: PendingRow[]; repo: string }> = ({ p
   const auto = pending.filter(
     (p) => p.detail !== 'rolling' && p.state !== 'held' && p.tier === 'auto',
   )
+  const anyPrs = pending.some((p) => p.pr_number)
   return (
     <>
+      {anyPrs && (
+        <nav class="filters scopefilters">
+          {SCOPE_FILTERS.map(([key, label]) => (
+            <a
+              href="#"
+              class={scopeFilter === key ? 'active' : ''}
+              hx-get={`/fragments/pending?prscope=${key}`}
+              hx-target="#pending"
+              hx-swap="innerHTML"
+            >
+              {label}
+            </a>
+          ))}
+          <span class="sub filters-note">
+            &ldquo;Edited&rdquo; means someone pushed changes beyond the image tag.
+          </span>
+        </nav>
+      )}
       <Section
         title="Needs review"
         caption="Majors, gated infrastructure, and anything else a human merges."
@@ -240,14 +270,28 @@ const Section: FC<{
               </td>
               <td class="nowrap">
                 {r.pr_number ? (
-                  <a
-                    class="prlink"
-                    href={`https://github.com/${repo}/pull/${r.pr_number}`}
-                    target="_blank"
-                    rel="noopener"
-                  >
-                    #{r.pr_number} &#8599;
-                  </a>
+                  <>
+                    <a
+                      class="ext"
+                      href={`https://github.com/${repo}/pull/${r.pr_number}`}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      #{r.pr_number} &#8599;
+                    </a>
+                    {r.pr_scope === 'modified' ? (
+                      <span
+                        class="pill warn scope"
+                        title="someone pushed changes beyond the image tag; this always needs a human"
+                      >
+                        edited
+                      </span>
+                    ) : (
+                      <span class="pill muted scope" title="only the image tag changes">
+                        tag only
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <span class="sub">&mdash;</span>
                 )}
