@@ -12,6 +12,7 @@ import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
 import { applyOps } from './apply.ts'
 import { propose, type Proposal } from './propose.ts'
+import { gatherContext } from './context.ts'
 
 /**
  * Turning a proposal into a second commit on the pull request branch.
@@ -165,6 +166,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
     })
 
     const result = await propose({
+      context: await gatherContext(before, c.service),
       image: c.image,
       fromTag: c.fromTag,
       toTag: c.toTag,

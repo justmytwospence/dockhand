@@ -11,6 +11,7 @@ import { refLinks } from '../links.ts'
 import { isScanning, scanOne } from '../scan.ts'
 import { runScanNow } from '../scheduler.ts'
 import { runProposePass } from '../propose/run.ts'
+import { PROMPTS, prompt, savePrompt, resetPrompt, isCustomised, type PromptName } from '../prompts/index.ts'
 import {
   Dashboard,
   PendingSections,
@@ -21,7 +22,7 @@ import {
 import { DiffView } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
-import { SettingsPage, SettingsForm, RawPolicy } from './views/settings.tsx'
+import { SettingsPage, SettingsForm, RawPolicy , PromptEditorFragment } from './views/settings.tsx'
 import { applySettings, SETTINGS } from '../settings.ts'
 import { listModels } from '../analyze/models.ts'
 import { rescheduleScan } from '../scheduler.ts'
@@ -261,9 +262,41 @@ export function createApp(): Hono {
     return c.html(ActivityPage({ missing: missing(), rows, filter: { kind, level }, repo: env.githubRepo }) as string)
   })
 
+  const promptStates = () =>
+    (Object.keys(PROMPTS) as PromptName[]).map((name) => ({
+      name,
+      body: prompt(name),
+      customised: isCustomised(name),
+    }))
+
   app.get('/settings', async (c) => {
     const { policy } = loadPolicy()
-    return c.html(SettingsPage({ missing: missing(), policy, models: await listModels() }) as string)
+    return c.html(
+      SettingsPage({
+        missing: missing(),
+        policy,
+        models: await listModels(),
+        prompts: promptStates(),
+      }) as string,
+    )
+  })
+
+  /** Prompts live in the database, not policy.yaml -- saved and reset on their own. */
+  app.post('/settings/prompt/:name', async (c) => {
+    const name = c.req.param('name') as PromptName
+    if (!(name in PROMPTS)) return c.text('unknown prompt', 404)
+    const form = await c.req.parseBody()
+    savePrompt(name, typeof form.body === 'string' ? form.body : '')
+    const state = { name, body: prompt(name), customised: isCustomised(name) }
+    return c.html(PromptEditorFragment({ state }) as string)
+  })
+
+  app.post('/settings/prompt/:name/reset', (c) => {
+    const name = c.req.param('name') as PromptName
+    if (!(name in PROMPTS)) return c.text('unknown prompt', 404)
+    resetPrompt(name)
+    const state = { name, body: prompt(name), customised: false }
+    return c.html(PromptEditorFragment({ state }) as string)
   })
 
   app.post('/settings', async (c) => {

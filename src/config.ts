@@ -144,6 +144,16 @@ const PolicySchema = z.object({
       // Drafting config changes is rare, high-stakes work where being right matters far
       // more than cost -- unlike the verdicts, which run on every pull request.
       code_model: z.string().default('claude-opus-5'),
+      // Web reading is what a call actually costs: the ceiling is fetches x
+      // content_tokens, dwarfing the prompt itself. Tunable because the right depth
+      // depends on how verbose your images' changelogs are.
+      web: z
+        .object({
+          searches: z.number().int().min(1).max(20).default(4),
+          fetches: z.number().int().min(1).max(20).default(5),
+          content_tokens: z.number().int().min(1000).max(100_000).default(12_000),
+        })
+        .prefault({}),
       monthly_budget_usd: z.number().positive().default(10),
     })
     .prefault({}),

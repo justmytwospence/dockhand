@@ -2,13 +2,21 @@ import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import { SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
 import { Layout, Banner, type MissingSetting } from './layout.tsx'
+import { PROMPTS, type PromptName } from '../../prompts/index.ts'
+
+export interface PromptState {
+  name: PromptName
+  body: string
+  customised: boolean
+}
 
 export const SettingsPage: FC<{
   policy: Policy
   models: string[]
+  prompts: PromptState[]
   result?: { ok: true; applied: string[]; commit: string | null } | { ok: false; errors: string[] }
   missing?: MissingSetting[]
-}> = ({ policy, models, result, missing }) => (
+}> = ({ policy, models, prompts, result, missing }) => (
   <Layout title="Settings" path="/settings" missing={missing}>
     <h2>Settings</h2>
     <p class="sub">
@@ -19,7 +27,54 @@ export const SettingsPage: FC<{
     <div id="settings-form">
       <SettingsForm policy={policy} models={models} result={result} />
     </div>
+
+    <h2>Prompts</h2>
+    <p class="sub">
+      What the models are actually told. These are the instructions behind every verdict
+      and every drafted change &mdash; edit them if the judgements you are getting are not
+      the judgements you want. Stored separately from{' '}
+      <code>policy.yaml</code>, so upgrades keep shipping new defaults you can return to.
+    </p>
+    {prompts.map((p) => (
+      <PromptEditorFragment state={p} />
+    ))}
   </Layout>
+)
+
+export const PromptEditorFragment: FC<{ state: PromptState }> = ({ state }) => (
+  <div class="prompt-editor" id={`prompt-${state.name}`}>
+    <form hx-post={`/settings/prompt/${state.name}`} hx-target={`#prompt-${state.name}`} hx-swap="outerHTML">
+      <div class="prompt-head">
+        <strong>{PROMPTS[state.name].title}</strong>
+        {state.customised ? (
+          <span class="pill accent">edited</span>
+        ) : (
+          <span class="pill muted">default</span>
+        )}
+      </div>
+      <p class="sub">{PROMPTS[state.name].help}</p>
+      <textarea name="body" rows={16} spellcheck={false}>
+        {state.body}
+      </textarea>
+      <div class="scanbar">
+        <button type="submit" hx-disabled-elt="this">
+          Save prompt
+        </button>
+        {state.customised && (
+          <button
+            type="button"
+            class="linkish"
+            hx-post={`/settings/prompt/${state.name}/reset`}
+            hx-target={`#prompt-${state.name}`}
+            hx-swap="outerHTML"
+          >
+            Reset to default
+          </button>
+        )}
+        <span class="sub">Takes effect on the next call. Saving the default clears the edit.</span>
+      </div>
+    </form>
+  </div>
 )
 
 export const SettingsForm: FC<{

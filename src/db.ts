@@ -267,6 +267,38 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     CREATE INDEX idx_proposals_pr ON proposals(pr_id);
   `,
   },
+  {
+    id: '007-llm-calls',
+    sql: `
+    -- One row per model call, so spend is explainable rather than merely known.
+    --
+    -- A single running total answers "how much" but never "why", which is the only
+    -- question worth asking when a number looks wrong. Cache tokens are recorded
+    -- separately because they are billed separately and are NOT part of input_tokens
+    -- -- counting only input_tokens under-reports every cached call.
+    CREATE TABLE llm_calls (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      model              TEXT NOT NULL,
+      purpose            TEXT NOT NULL,   -- verdict | proposal
+      input_tokens       INTEGER NOT NULL DEFAULT 0,
+      output_tokens      INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+      searches           INTEGER NOT NULL DEFAULT 0,
+      cost_usd           REAL NOT NULL DEFAULT 0,
+      created_at         TEXT NOT NULL
+    );
+    CREATE INDEX idx_llm_calls_created ON llm_calls(created_at);
+
+    -- Operator-edited prompts. Absent row = use the file default, which is how every
+    -- deployment starts and what "reset" returns to.
+    CREATE TABLE prompts (
+      name       TEXT PRIMARY KEY,   -- verdict | proposal
+      body       TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `,
+  },
 ]
 
 function migrate(d: Db): void {
