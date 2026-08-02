@@ -31,7 +31,8 @@ export async function pollPrs(): Promise<PollResult> {
 
   const open = getDb()
     .prepare(
-      `SELECT id, number, branch, group_key, head_sha_pushed, scope FROM prs WHERE state = 'open'`,
+      `SELECT id, number, branch, group_key, head_sha_pushed, scope, scope_sha
+       FROM prs WHERE state = 'open'`,
     )
     .all() as {
     id: number
@@ -39,6 +40,7 @@ export async function pollPrs(): Promise<PollResult> {
     branch: string
     head_sha_pushed: string
     scope: string
+    scope_sha: string | null
   }[]
   if (open.length === 0) return out
 
@@ -60,10 +62,16 @@ export async function pollPrs(): Promise<PollResult> {
     }
 
     // A head that no longer matches what we pushed means a human edited the branch.
-    // From then on it is theirs: never force-pushed, never regenerated.
-    if (data.head.sha !== pr.head_sha_pushed) {
-      getDb().prepare(`UPDATE prs SET user_owned = 1 WHERE id = ?`).run(pr.id)
-      if (data.state === 'open') await classifyScope(pr.id, pr.number, pr.scope)
+    // From then on it is theirs: never force-pushed, never regenerated. Restoring it
+    // to dockhand's own commit hands ownership back, since there is nothing of theirs
+    // left on it.
+    const owned = data.head.sha !== pr.head_sha_pushed
+    getDb().prepare(`UPDATE prs SET user_owned = ? WHERE id = ?`).run(owned ? 1 : 0, pr.id)
+
+    // Re-classify whenever the head has moved since the last classification -- in
+    // either direction, so an edit that is later reverted stops being reported as one.
+    if (data.state === 'open' && data.head.sha !== pr.scope_sha) {
+      await classifyScope(pr.id, pr.number, pr.scope, data.head.sha)
     }
 
     if (data.state === 'open') continue
@@ -107,19 +115,25 @@ export function classifyPatch(
   return 'tag-only'
 }
 
-async function classifyScope(prId: number, number: number, was: string): Promise<void> {
+async function classifyScope(
+  prId: number,
+  number: number,
+  was: string,
+  headSha: string,
+): Promise<void> {
   const [owner, repo] = env.githubRepo.split('/') as [string, string]
   let scope: 'tag-only' | 'modified'
   try {
     const res = await gh().rest.pulls.listFiles({ owner, repo, pull_number: number, per_page: 100 })
     scope = classifyPatch(res.data, res.data.length >= 100)
   } catch {
-    // Unknown is not the same as clean; leave whatever was there rather than guessing.
+    // Unknown is not the same as clean; leave whatever was there rather than guessing,
+    // and do not record the sha, so the next poll retries.
     return
   }
-  if (scope === was) return
 
-  getDb().prepare(`UPDATE prs SET scope = ? WHERE id = ?`).run(scope, prId)
+  getDb().prepare(`UPDATE prs SET scope = ?, scope_sha = ? WHERE id = ?`).run(scope, headSha, prId)
+  if (scope === was) return
   logEvent({
     level: 'info',
     kind: 'pr',

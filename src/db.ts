@@ -229,6 +229,16 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     ALTER TABLE prs ADD COLUMN scope TEXT NOT NULL DEFAULT 'tag-only';
   `,
   },
+  {
+    id: '005-scope-sha',
+    sql: `
+    -- The branch head that the scope column describes. Classification runs whenever the
+    -- head moves away from this, in EITHER direction: keying it off "differs from what
+    -- dockhand pushed" instead would strand a branch as 'modified' forever once someone
+    -- restored it to dockhand's own commit, because that comparison stops being true.
+    ALTER TABLE prs ADD COLUMN scope_sha TEXT;
+  `,
+  },
 ]
 
 function migrate(d: Db): void {
