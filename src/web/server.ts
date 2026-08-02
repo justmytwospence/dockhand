@@ -29,7 +29,7 @@ import { listModels } from '../analyze/models.ts'
 import { rescheduleScan } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
-import { SystemPage, type SpendRow, type DeployRow } from './views/system.tsx'
+import { SystemPage, type SpendRow, type DeployRow, type ModelTierRow } from './views/system.tsx'
 
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
@@ -369,6 +369,15 @@ export function createApp(): Hono {
          FROM deploys ORDER BY id DESC LIMIT 15`,
       )
       .all() as DeployRow[]
+    // The track record for model-decided updates: what it would have done, and why not
+    // when it declined.
+    const modelTier = getDb()
+      .prepare(
+        `SELECT stack, service, from_tag, to_tag, magnitude, static_tier,
+                promote, reason, enforced, created_at
+         FROM model_tier_decisions ORDER BY id DESC LIMIT 25`,
+      )
+      .all() as ModelTierRow[]
     return c.html(
       SystemPage({ missing: missing(),
         policy,
@@ -376,6 +385,7 @@ export function createApp(): Hono {
         budgets,
         spend,
         deploys,
+        modelTier,
         version: readPackageVersion(),
         blackout: inBlackout(policy),
         scan: scanInfo(),

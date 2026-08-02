@@ -22,11 +22,11 @@ export type Confidence = 'low' | 'medium' | 'high'
  * live here: a postgres major cannot be applied by bumping the tag at all (the new
  * container refuses the old datadir), so a standing merge-able PR would be a loaded gun.
  */
-export type EffectiveTier = 'auto' | 'gated' | 'manual' | 'held' | 'skip'
+export type EffectiveTier = 'auto' | 'gated' | 'manual' | 'held' | 'skip' | 'model'
 
 export interface TierInput {
   magnitude: Magnitude
-  /** `dockhand.policy`: auto | gated | manual | skip */
+  /** `dockhand.policy`: auto | gated | manual | skip | model */
   policyLabel: string | null
   /** `dockhand.pr`: on-request */
   prLabel: string | null
@@ -39,6 +39,10 @@ export function tierFor(i: TierInput): EffectiveTier {
   if (i.prLabel === 'on-request') return 'held'
   if (i.policyLabel === 'gated') return 'gated'
   if (i.policyLabel === 'manual') return 'manual'
+  // Deferred, not decided: `model` needs a verdict, which tierFor has not got. The
+  // merge path resolves it through policy/model-tier.ts and falls back to the static
+  // tier -- `manual` for a major -- whenever the guards refuse.
+  if (i.policyLabel === 'model') return 'model'
   // Majors always need a human, whatever the defaults say. Not configurable.
   if (i.magnitude === 'major') return 'manual'
   if (i.magnitude === 'digest') return asTier(i.defaults.digest)
@@ -52,9 +56,12 @@ function asTier(v: string): EffectiveTier {
 const TIER_RANK: Record<EffectiveTier, number> = {
   skip: 0,
   auto: 1,
-  gated: 2,
-  manual: 3,
-  held: 4,
+  // Unresolved sits above auto: a group containing one is never merged on the strength
+  // of its other members.
+  model: 2,
+  gated: 3,
+  manual: 4,
+  held: 5,
 }
 
 /**

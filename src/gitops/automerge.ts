@@ -4,6 +4,7 @@ import { getDb, logEvent } from '../db.ts'
 import { canAutoMerge, foldGroupMagnitude, foldGroupTier, tierFor } from '../policy.ts'
 import { scanRepo } from '../compose/scan.ts'
 import type { Magnitude } from '../versions/patterns.ts'
+import { assess, type ResolutionTier } from '../policy/model-tier.ts'
 
 /**
  * Merging what policy already allows, without a human.
@@ -65,11 +66,15 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
 
   const rows = getDb()
     .prepare(
-      `SELECT u.stack, u.service, u.magnitude, u.detail,
-              v.recommendation, v.confidence, v.error AS verdict_error
+      `SELECT u.stack, u.service, u.magnitude, u.detail, u.image, u.from_tag, u.to_tag,
+              v.recommendation, v.confidence, v.error AS verdict_error,
+              v.sources, v.breaking_changes, v.migration_steps,
+              r.tier AS resolution_tier, r.source_url
        FROM updates u
        JOIN pr_updates pu ON pu.update_id = u.id
        LEFT JOIN verdicts v ON v.image = u.image AND v.from_tag = u.from_tag AND v.to_tag = u.to_tag
+       LEFT JOIN images i ON i.stack = u.stack AND i.service = u.service
+       LEFT JOIN resolutions r ON r.registry = i.registry AND r.repository = i.repository
        WHERE pu.pr_id = ?`,
     )
     .all(prId) as {
@@ -77,9 +82,17 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     service: string
     magnitude: Magnitude
     detail: string | null
+    image: string
+    from_tag: string
+    to_tag: string
     recommendation: string | null
     confidence: string | null
     verdict_error: string | null
+    sources: string | null
+    breaking_changes: string | null
+    migration_steps: string | null
+    resolution_tier: string | null
+    source_url: string | null
   }[]
 
   if (rows.length === 0) return { number, merge: false, reason: 'no updates recorded for it' }
@@ -109,8 +122,16 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     { rec: 'approve', conf: 'high' },
   )
 
+  let tier = foldGroupTier(tiers)
+  if (tier === 'model') {
+    // The one place the model's judgement can raise rather than lower a tier. Every
+    // guard must pass; anything else falls back to what static policy alone would say,
+    // which for a major is a human.
+    tier = resolveModelTier(rows, policy, number)
+  }
+
   const d = canAutoMerge({
-    tier: foldGroupTier(tiers),
+    tier,
     magnitude: foldGroupMagnitude(rows.map((r) => r.magnitude)),
     verdict: worstVerdict.rec as never,
     confidence: worstVerdict.conf as never,
@@ -120,6 +141,118 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     prScope: 'tag-only',
   })
   return { number, merge: d.merge, reason: d.merge ? 'policy allows it' : d.reason }
+}
+
+/**
+ * Resolve a deferred `model` tier into a real one, recording the decision either way.
+ *
+ * Returns `auto` only when every guard passes AND the mode is `enforce`. Under
+ * `shadow` the assessment is recorded and the static fallback is returned, so the
+ * track record accumulates without anything acting on it.
+ */
+function resolveModelTier(
+  rows: {
+    stack: string
+    service: string
+    image?: string
+    from_tag?: string
+    to_tag?: string
+    magnitude: Magnitude
+    recommendation: string | null
+    confidence: string | null
+    verdict_error: string | null
+    sources: string | null
+    breaking_changes: string | null
+    migration_steps: string | null
+    resolution_tier: string | null
+    source_url: string | null
+  }[],
+  policy: Policy,
+  number: number,
+): EffectiveTierResolved {
+  const { mode } = policy.model_tier
+  if (mode === 'off') return fallbackTier(rows, policy)
+
+  const db = getDb()
+  const now = new Date().toISOString()
+  let allPromote = true
+  let firstRefusal = 'every guard passed'
+
+  for (const r of rows) {
+    const a = assess({
+      resolutionTier: (r.resolution_tier ?? 'none') as ResolutionTier,
+      sourceRepo: r.source_url,
+      sources: parseArray(r.sources),
+      recommendation: (r.verdict_error ? 'unavailable' : (r.recommendation ?? 'unavailable')) as never,
+      confidence: (r.confidence ?? 'low') as never,
+      breakingChanges: parseArray(r.breaking_changes),
+      migrationSteps: parseArray(r.migration_steps),
+    })
+    if (!a.promote && allPromote) firstRefusal = `${r.service}: ${a.reason}`
+    allPromote &&= a.promote
+
+    db.prepare(
+      `INSERT INTO model_tier_decisions
+         (image, stack, service, from_tag, to_tag, magnitude, static_tier,
+          promote, reason, guards, enforced, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      r.image ?? '',
+      r.stack,
+      r.service,
+      r.from_tag ?? null,
+      r.to_tag ?? null,
+      r.magnitude,
+      fallbackTier([r], policy),
+      a.promote ? 1 : 0,
+      a.reason,
+      JSON.stringify(a.guards),
+      mode === 'enforce' ? 1 : 0,
+      now,
+    )
+  }
+
+  if (mode === 'shadow') {
+    logEvent({
+      level: 'info',
+      kind: 'pr',
+      message: `#${number}: model would ${allPromote ? 'treat this as routine' : 'defer to a human'}`,
+      detail: `${firstRefusal} — shadow mode, nothing acted on it`,
+    })
+    return fallbackTier(rows, policy)
+  }
+
+  return allPromote ? 'auto' : fallbackTier(rows, policy)
+}
+
+type EffectiveTierResolved = 'auto' | 'gated' | 'manual' | 'held' | 'skip'
+
+/** What static policy alone would have said, ignoring the model entirely. */
+function fallbackTier(rows: { magnitude: Magnitude }[], policy: Policy): EffectiveTierResolved {
+  const mags = rows.map((r) => r.magnitude)
+  if (mags.includes('major')) return 'manual'
+  const worst = mags.map((m) => asStatic(policy.defaults[m === 'digest' ? 'digest' : m]))
+  return worst.includes('manual')
+    ? 'manual'
+    : worst.includes('gated')
+      ? 'gated'
+      : worst.includes('skip')
+        ? 'skip'
+        : 'auto'
+}
+
+function asStatic(v: string): EffectiveTierResolved {
+  return v === 'auto' || v === 'gated' || v === 'manual' || v === 'skip' ? v : 'manual'
+}
+
+function parseArray(v: string | null): string[] {
+  if (!v) return []
+  try {
+    const p = JSON.parse(v)
+    return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 export interface AutoMergeResult {

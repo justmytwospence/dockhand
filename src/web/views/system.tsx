@@ -24,9 +24,23 @@ export interface DeployRow {
   created_at: string
 }
 
+export interface ModelTierRow {
+  stack: string
+  service: string
+  from_tag: string | null
+  to_tag: string | null
+  magnitude: string
+  static_tier: string
+  promote: number
+  reason: string
+  enforced: number
+  created_at: string
+}
+
 export const SystemPage: FC<{
   spend?: SpendRow[]
   deploys?: DeployRow[]
+  modelTier?: ModelTierRow[]
   policy: Policy
   policyError?: string
   budgets: Record<string, unknown>[]
@@ -34,7 +48,7 @@ export const SystemPage: FC<{
   blackout: boolean
   scan: ScanInfo
   missing?: MissingSetting[]
-}> = ({ policy, policyError, budgets, spend, deploys, version, blackout, scan, missing }) => (
+}> = ({ policy, policyError, budgets, spend, deploys, modelTier, version, blackout, scan, missing }) => (
   <Layout title="System" path="/system" missing={missing}>
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
@@ -127,6 +141,60 @@ export const SystemPage: FC<{
         <Cred name="DOCKER_HUB_LOGIN" set={!!env.dockerHubLogin} />
       </tbody>
     </Table>
+
+    <h2>Model-decided updates</h2>
+    {!modelTier || modelTier.length === 0 ? (
+      <Empty>
+        No decisions recorded. Label a service <code>dockhand.policy: model</code> and the
+        model&rsquo;s judgement is recorded here on its next update &mdash; without acting
+        on it, while the mode is <code>shadow</code>.
+      </Empty>
+    ) : (
+      <>
+        <p class="sub">
+          {(() => {
+            const n = modelTier.length
+            const yes = modelTier.filter((m) => m.promote).length
+            return `${yes} of ${n} recent decisions would have been treated as routine. The rest fell back to static policy, for the reason shown.`
+          })()}
+        </p>
+        <Table>
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Update</th>
+              <th>Static</th>
+              <th>Model</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            {modelTier.map((m) => (
+              <tr>
+                <td class="mono">
+                  {m.stack}/{m.service}
+                </td>
+                <td class="mono sub">
+                  {m.from_tag} &rarr; {m.to_tag}
+                </td>
+                <td>
+                  <span class="pill muted">{m.static_tier}</span>
+                </td>
+                <td>
+                  {m.promote ? (
+                    <span class="pill ok">routine</span>
+                  ) : (
+                    <span class="pill muted">defer</span>
+                  )}
+                  {!m.enforced && <span class="pill muted">shadow</span>}
+                </td>
+                <td class="sub">{m.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </>
+    )}
 
     <h2>Recent deploys</h2>
     {!deploys || deploys.length === 0 ? (

@@ -326,6 +326,33 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     CREATE INDEX idx_deploys_created ON deploys(created_at);
   `,
   },
+  {
+    id: '010-model-tier',
+    sql: `
+    -- Every time the model was asked whether an update is routine, and what the static
+    -- policy would have said instead.
+    --
+    -- Recorded even in shadow mode, where nothing acts on it. That is the point: the
+    -- question "does this work well enough to enable" needs a track record, and a
+    -- track record cannot be gathered after the fact.
+    CREATE TABLE model_tier_decisions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      image       TEXT NOT NULL,
+      stack       TEXT,
+      service     TEXT,
+      from_tag    TEXT,
+      to_tag      TEXT,
+      magnitude   TEXT,
+      static_tier TEXT NOT NULL,   -- what policy alone would have given
+      promote     INTEGER NOT NULL,-- did every guard pass
+      reason      TEXT NOT NULL,   -- the first guard that refused, or 'every guard passed'
+      guards      TEXT NOT NULL,   -- JSON, so a refusal can be understood later
+      enforced    INTEGER NOT NULL,-- was this acted on, or only observed
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX idx_mtd_created ON model_tier_decisions(created_at);
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

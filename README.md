@@ -164,13 +164,37 @@ takes effect on the next scan without recreating anything.
                                    #  | digest | latest | regex
       # Optional:
       dockhand.tag.include: '^\d{1,3}\.\d+\.\d+$$'  # narrow the candidates ($$ escapes $)
-      dockhand.policy: gated       # auto | gated | manual | skip
+      dockhand.policy: gated       # auto | gated | manual | skip | model
       dockhand.pr: on-request      # detect and show, but only open a PR when asked
       dockhand.source: https://github.com/owner/repo   # if the image lacks an OCI source label
       dockhand.claude: required    # refuse to auto-merge without a verdict
       dockhand.group: mygroup      # force services into one PR
       dockhand.deploy: rm-first    # recreate rather than update (re-reads image env)
 ```
+
+### Letting the model decide (opt-in, off by default)
+
+`dockhand.policy: model` defers the auto-versus-review question to the changelog
+review, instead of deciding it by version magnitude. It is the one place a model can
+*raise* a tier rather than only lower it, so promotion requires all of:
+
+- the image resolves to a real upstream (its own OCI annotation, a curated override,
+  LinuxServer's API, or your `dockhand.source` label);
+- **every URL the verdict cited lives under that upstream repository** — this is the
+  actual guard. Web search is domain-restricted but page fetches are not, and GitHub
+  hosts content anyone can create, so "it turned up in a search" proves nothing;
+- the verdict is `approve` at `high` confidence, with no breaking changes and no
+  migration steps.
+
+Any failure falls back to what static policy alone would say, which for a major is a
+human. Nothing here reads the prose of a changelog: every guard is a structural fact
+about provenance or about fields the model filled in, so a release note claiming to be
+routine has no path to the outcome.
+
+`model_tier.mode` is `shadow` by default — decisions are recorded on the System page
+and nothing acts on them, so you can see the track record before deciding whether to
+`enforce`. Per-service labels remain the default and the recommendation; this is for
+when you would rather not maintain them.
 
 If you already label services for another updater, `npm run migrate-labels` derives
 `dockhand.*` labels from `wud.*` ones and writes them in place, validating each

@@ -184,6 +184,14 @@ const PolicySchema = z.object({
       mode: z.enum(['auto', 'manual', 'off']).default('auto'),
     })
     .prefault({}),
+  // Whether a service labelled `dockhand.policy: model` actually gets model-decided
+  // treatment. `shadow` records what would have happened and changes nothing, which is
+  // how you find out whether it works before it matters.
+  model_tier: z
+    .object({
+      mode: z.enum(['off', 'shadow', 'enforce']).default('shadow'),
+    })
+    .prefault({}),
   merge: z
     .object({
       // Off by default and off in this deployment: enabling the one path that can

@@ -60,6 +60,15 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     section: 'Merging',
+    path: 'model_tier.mode',
+    kind: 'enum',
+    options: ['off', 'shadow', 'enforce'],
+    defaultValue: 'shadow',
+    label: 'Model-decided updates',
+    help: 'For services labelled dockhand.policy: model. Shadow records the decisions without acting on them.',
+  },
+  {
+    section: 'Merging',
     path: 'merge.auto',
     kind: 'bool',
     defaultValue: 'false',
