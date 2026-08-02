@@ -104,6 +104,11 @@ async function fire(): Promise<void> {
   await runScanSafely('cron')
 }
 
+/** Rebuild the cron job, so a schedule edited in the UI applies immediately. */
+export function rescheduleScan(): void {
+  schedule()
+}
+
 /** Entry point for the UI button. */
 export async function runScanNow(): Promise<ReturnType<typeof runScan>> {
   return runScan('manual')

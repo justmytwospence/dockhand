@@ -4,6 +4,7 @@ const NAV = [
   ['/', 'Dashboard'],
   ['/images', 'Images'],
   ['/activity', 'Activity'],
+  ['/settings', 'Settings'],
   ['/system', 'System'],
 ] as const
 

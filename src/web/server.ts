@@ -20,6 +20,12 @@ import {
 import { DiffView } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
+import { SettingsPage, SettingsForm, RawPolicy } from './views/settings.tsx'
+import { applySettings, SETTINGS } from '../settings.ts'
+import { listModels } from '../analyze/models.ts'
+import { rescheduleScan } from '../scheduler.ts'
+import { readFileSync as readFile } from 'node:fs'
+import { paths } from '../config.ts'
 import { SystemPage } from './views/system.tsx'
 
 const PENDING_SQL = `
@@ -214,6 +220,33 @@ export function createApp(): Hono {
       return c.html(ActivityTable({ rows, repo: env.githubRepo }) as string)
     }
     return c.html(ActivityPage({ rows, filter: { kind, level }, repo: env.githubRepo }) as string)
+  })
+
+  app.get('/settings', async (c) => {
+    const { policy } = loadPolicy()
+    return c.html(SettingsPage({ policy, models: await listModels() }) as string)
+  })
+
+  app.post('/settings', async (c) => {
+    const form = await c.req.parseBody()
+    const changes: Record<string, string> = {}
+    for (const def of SETTINGS) {
+      const v = form[def.path]
+      if (typeof v === 'string') changes[def.path] = v
+    }
+    const result = applySettings(changes)
+    // A schedule change should not wait for the old schedule to fire before applying.
+    if (result.ok && result.applied.includes('scan.cron')) rescheduleScan()
+    const { policy } = loadPolicy()
+    return c.html(SettingsForm({ policy, models: await listModels(), result }) as string)
+  })
+
+  app.get('/settings/raw', (c) => {
+    try {
+      return c.html(RawPolicy({ text: readFile(paths.policy, 'utf8') }) as string)
+    } catch (err) {
+      return c.html(RawPolicy({ text: '', error: (err as Error).message }) as string)
+    }
   })
 
   app.get('/system', (c) => {

@@ -144,6 +144,16 @@ export function loadPolicy(): { policy: Policy; error?: string } {
   }
 }
 
+/** Check a candidate policy.yaml before it is allowed to replace the real one. */
+export function validatePolicyText(raw: string): { ok: true } | { ok: false; error: string } {
+  try {
+    PolicySchema.parse(parseYaml(raw) ?? {})
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message.slice(0, 400) : String(err) }
+  }
+}
+
 /** True when `now` falls inside any configured blackout window (local time). Windows
  *  may wrap past midnight. */
 export function inBlackout(policy: Policy, now = new Date()): boolean {

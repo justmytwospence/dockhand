@@ -702,3 +702,117 @@ button[disabled] {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------------ settings */
+
+.settings {
+  display: grid;
+  gap: 0.1rem 1.25rem;
+  grid-template-columns: minmax(11rem, 15rem) 1fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+}
+
+.setting {
+  display: contents;
+}
+
+.setting label {
+  grid-column: 1;
+  padding-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.setting .control {
+  grid-column: 2;
+  padding-top: 0.35rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.setting .help {
+  grid-column: 2;
+  margin: 0.1rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.setting.locked label,
+.setting.locked .help {
+  color: var(--muted);
+}
+
+.locked-value {
+  color: var(--muted);
+  padding: 0.35rem 0;
+}
+
+select,
+.settings input {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.5rem;
+}
+
+select:focus,
+.settings input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings input {
+  min-width: 18rem;
+}
+
+.settings input.narrow {
+  min-width: 7rem;
+}
+
+.model-picker {
+  max-width: 100%;
+}
+
+.errlist {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.rawfile {
+  margin: 0;
+  padding: 0.9rem 1.1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+@media (max-width: 640px) {
+  .settings {
+    grid-template-columns: 1fr;
+    padding: 0.8rem;
+  }
+
+  .setting label {
+    grid-column: 1;
+    padding-top: 0.7rem;
+    font-weight: 550;
+  }
+
+  .setting .control,
+  .setting .help {
+    grid-column: 1;
+  }
+
+  .settings input {
+    min-width: 0;
+    width: 100%;
+  }
+}
