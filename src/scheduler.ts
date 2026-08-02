@@ -3,6 +3,7 @@ import { configured, env, inBlackout, loadPolicy } from './config.ts'
 import { logEvent } from './db.ts'
 import { runAnalysisPass } from './analyze/run.ts'
 import { runProposePass } from './propose/run.ts'
+import { runAutoMerge } from './gitops/automerge.ts'
 import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
 import { runPrPass } from './gitops/pr.ts'
 import { runScan } from './scan.ts'
@@ -55,6 +56,9 @@ function startPrLoop(): void {
         // After analysis, because a proposal is only drafted once a verdict says the
         // update needs more than its tag.
         await runProposePass()
+        // Last, so a pull request opened this cycle has had its verdict and any
+        // proposal before anything considers merging it.
+        await runAutoMerge()
         if (result.paused) {
           logEvent({
             level: 'info',

@@ -184,6 +184,16 @@ const PolicySchema = z.object({
       mode: z.enum(['auto', 'manual', 'off']).default('auto'),
     })
     .prefault({}),
+  merge: z
+    .object({
+      // Off by default and off in this deployment: enabling the one path that can
+      // change the repository unattended is an operator decision, never a side effect
+      // of upgrading.
+      auto: z.boolean().default(false),
+      // A ceiling so a misconfiguration merges a couple of things and stops.
+      max_per_run: z.number().int().min(1).max(50).default(3),
+    })
+    .prefault({}),
   deploy: z
     .object({
       // auto   -- bring merged changes up on the host

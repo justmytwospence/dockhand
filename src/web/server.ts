@@ -11,6 +11,7 @@ import { refLinks } from '../links.ts'
 import { isScanning, scanOne } from '../scan.ts'
 import { runScanNow } from '../scheduler.ts'
 import { runProposePass } from '../propose/run.ts'
+import { runAutoMerge } from '../gitops/automerge.ts'
 import { PROMPTS, prompt, savePrompt, resetPrompt, isCustomised, type PromptName } from '../prompts/index.ts'
 import {
   Dashboard,
@@ -28,7 +29,7 @@ import { listModels } from '../analyze/models.ts'
 import { rescheduleScan } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
-import { SystemPage, type SpendRow } from './views/system.tsx'
+import { SystemPage, type SpendRow, type DeployRow } from './views/system.tsx'
 
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
@@ -217,6 +218,24 @@ export function createApp(): Hono {
     return c.html('<span class="sub">nothing to draft for this pull request</span>')
   })
 
+  /** What auto-merge would do right now, decided by the code that does it. */
+  app.get('/merge/preview', async (c) => {
+    const r = await runAutoMerge(true)
+    const { policy } = loadPolicy()
+    const rows = r.decisions
+      .map(
+        (d) =>
+          `<tr><td class="mono">#${d.number}</td><td>${
+            d.merge ? '<span class="pill ok">would merge</span>' : '<span class="pill muted">held</span>'
+          }</td><td class="sub">${d.reason}</td></tr>`,
+      )
+      .join('')
+    return c.html(
+      `<p class="sub">${policy.merge.auto ? 'Auto-merge is <strong>on</strong>.' : 'Auto-merge is <strong>off</strong> — this is what it would do if enabled.'}</p>` +
+        `<table><tbody>${rows || '<tr><td class="sub">No open pull requests.</td></tr>'}</tbody></table>`,
+    )
+  })
+
   app.get('/images', (c) => {
     const { policy } = loadPolicy()
     const filter = c.req.query('filter') ?? 'all'
@@ -344,12 +363,19 @@ export function createApp(): Hono {
          GROUP BY model, purpose ORDER BY cost DESC`,
       )
       .all(new Date().toISOString().slice(0, 7) + '-01') as SpendRow[]
+    const deploys = getDb()
+      .prepare(
+        `SELECT stack, services, strategy, ok, healthy, detail, created_at
+         FROM deploys ORDER BY id DESC LIMIT 15`,
+      )
+      .all() as DeployRow[]
     return c.html(
       SystemPage({ missing: missing(),
         policy,
         policyError: error,
         budgets,
         spend,
+        deploys,
         version: readPackageVersion(),
         blackout: inBlackout(policy),
         scan: scanInfo(),

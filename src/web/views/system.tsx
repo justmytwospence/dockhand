@@ -14,8 +14,19 @@ export interface SpendRow {
   cached: number
 }
 
+export interface DeployRow {
+  stack: string
+  services: string
+  strategy: string
+  ok: number
+  healthy: number
+  detail: string | null
+  created_at: string
+}
+
 export const SystemPage: FC<{
   spend?: SpendRow[]
+  deploys?: DeployRow[]
   policy: Policy
   policyError?: string
   budgets: Record<string, unknown>[]
@@ -23,7 +34,7 @@ export const SystemPage: FC<{
   blackout: boolean
   scan: ScanInfo
   missing?: MissingSetting[]
-}> = ({ policy, policyError, budgets, spend, version, blackout, scan, missing }) => (
+}> = ({ policy, policyError, budgets, spend, deploys, version, blackout, scan, missing }) => (
   <Layout title="System" path="/system" missing={missing}>
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
@@ -116,6 +127,48 @@ export const SystemPage: FC<{
         <Cred name="DOCKER_HUB_LOGIN" set={!!env.dockerHubLogin} />
       </tbody>
     </Table>
+
+    <h2>Recent deploys</h2>
+    {!deploys || deploys.length === 0 ? (
+      <Empty>
+        Nothing deployed yet. Merged changes are synced into the checkout; whether they
+        are brought up automatically is the <code>deploy.mode</code> setting.
+      </Empty>
+    ) : (
+      <Table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Stack</th>
+            <th>Services</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {deploys.map((d) => (
+            <tr>
+              <td class="sub">{d.created_at.replace('T', ' ').slice(0, 16)}</td>
+              <td class="mono">{d.stack}</td>
+              <td class="mono">
+                {d.services}
+                {d.strategy === 'rm-first' && <span class="pill muted">rm-first</span>}
+              </td>
+              <td>
+                {d.ok && d.healthy ? (
+                  <span class="pill ok">healthy</span>
+                ) : d.ok ? (
+                  // Started but not healthy is the one that looks fine and is not.
+                  <span class="pill error">unhealthy</span>
+                ) : (
+                  <span class="pill error">failed</span>
+                )}{' '}
+                <span class="sub">{d.detail}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    )}
 
     <h2>Model spend this month</h2>
     {!spend || spend.length === 0 ? (

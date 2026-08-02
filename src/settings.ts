@@ -59,6 +59,22 @@ export const SETTINGS: SettingDef[] = [
     help: 'Pick from the list, or type an id to use one that is not listed.',
   },
   {
+    section: 'Merging',
+    path: 'merge.auto',
+    kind: 'bool',
+    defaultValue: 'false',
+    label: 'Merge without asking',
+    help: 'Only tag-only pull requests on the auto tier, patch/minor, with no verdict withholding them.',
+  },
+  {
+    section: 'Merging',
+    path: 'merge.max_per_run',
+    kind: 'number',
+    defaultValue: '3',
+    label: 'Most merges per run',
+    help: 'A ceiling so a misconfiguration merges a couple of things rather than the backlog.',
+  },
+  {
     section: 'Deploys',
     path: 'deploy.mode',
     kind: 'enum',
