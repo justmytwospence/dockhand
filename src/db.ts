@@ -307,6 +307,25 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     ALTER TABLE proposals ADD COLUMN hunks TEXT;
   `,
   },
+  {
+    id: '009-deploys',
+    sql: `
+    -- What actually reached the host. Separate from events because "did this deploy,
+    -- and did it come up" is a question about services over time, not a log line.
+    CREATE TABLE deploys (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      pr_number  INTEGER,
+      stack      TEXT NOT NULL,
+      services   TEXT NOT NULL,
+      strategy   TEXT NOT NULL,   -- up | rm-first
+      ok         INTEGER NOT NULL,
+      healthy    INTEGER NOT NULL,
+      detail     TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_deploys_created ON deploys(created_at);
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

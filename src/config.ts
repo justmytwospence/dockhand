@@ -186,6 +186,10 @@ const PolicySchema = z.object({
     .prefault({}),
   deploy: z
     .object({
+      // auto   -- bring merged changes up on the host
+      // manual -- sync only; the notification carries the command to paste
+      // off    -- do not even sync
+      mode: z.enum(['auto', 'manual', 'off']).default('manual'),
       serialize: z.boolean().default(true),
       health_window_s: z.number().int().positive().default(120),
     })

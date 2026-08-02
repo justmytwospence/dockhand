@@ -59,6 +59,23 @@ export const SETTINGS: SettingDef[] = [
     help: 'Pick from the list, or type an id to use one that is not listed.',
   },
   {
+    section: 'Deploys',
+    path: 'deploy.mode',
+    kind: 'enum',
+    options: ['auto', 'manual', 'off'],
+    defaultValue: 'manual',
+    label: 'After a merge',
+    help: 'Auto brings the change up on the host. Manual syncs and sends you the command.',
+  },
+  {
+    section: 'Deploys',
+    path: 'deploy.health_window_s',
+    kind: 'number',
+    defaultValue: '120',
+    label: 'Health window (seconds)',
+    help: 'How long to wait for containers to come up healthy before calling it a failure.',
+  },
+  {
     section: 'Config proposals',
     path: 'propose.mode',
     kind: 'enum',

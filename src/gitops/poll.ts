@@ -4,6 +4,7 @@ import { getDb, logEvent } from '../db.ts'
 import { notify } from '../notify.ts'
 import { withGitLock } from './repo.ts'
 import { syncMain } from './sync.ts'
+import { deployForPr, type DeployTarget } from '../deploy/run.ts'
 
 /**
  * Watching for merges.
@@ -162,6 +163,7 @@ function hasProposal(prId: number): boolean {
 }
 
 async function onMerged(prId: number, number: number): Promise<void> {
+  const { policy } = loadPolicy()
   const db = getDb()
   const now = new Date().toISOString()
   const members = db
@@ -206,16 +208,49 @@ async function onMerged(prId: number, number: number): Promise<void> {
     kind: 'pr',
     stack,
     message: `#${number} merged and synced`,
-    detail: `deploy with: ${command}`,
+    detail: policy.deploy.mode === 'auto' ? 'deploying' : `deploy with: ${command}`,
   })
-  // Deploying automatically is the next milestone; until then the notification carries
-  // the exact command so it is one paste rather than a lookup.
-  await notify({
-    title: `dockhand: #${number} merged`,
-    body: `${stack}: ${services}\n\nDeploy with:\n${command}`,
-    tags: ['white_check_mark'],
-    click: `https://github.com/${env.githubRepo}/pull/${number}`,
-  })
+
+  if (policy.deploy.mode !== 'auto') {
+    // Not deploying: the notification carries the exact command so it is one paste
+    // rather than a lookup.
+    await notify({
+      title: `dockhand: #${number} merged`,
+      body: `${stack}: ${services}\n\nDeploy with:\n${command}`,
+      tags: ['white_check_mark'],
+      click: `https://github.com/${env.githubRepo}/pull/${number}`,
+    })
+    return
+  }
+
+  const target: DeployTarget = {
+    stack,
+    services: [...new Set(members.map((m) => m.service))],
+    // rm-first if any member asked for it: the strategy applies to the whole compose
+    // invocation, and the safer of the two wins.
+    strategy: members.some((m) => deployLabelFor(m.stack, m.service) === 'rm-first')
+      ? 'rm-first'
+      : 'up',
+  }
+  const outcome = await deployForPr(number, target);
+
+  if (outcome.ok && outcome.healthy) {
+    await notify({
+      title: `dockhand: #${number} merged and deployed`,
+      body: `${stack}: ${outcome.detail}`,
+      tags: ['white_check_mark'],
+      click: `https://github.com/${env.githubRepo}/pull/${number}`,
+    })
+  }
+  // Failures notify from deployForPr, which knows how they failed.
+}
+
+/** The service's `dockhand.deploy` label, as recorded by the last scan. */
+function deployLabelFor(stack: string, service: string): string | null {
+  const row = getDb()
+    .prepare(`SELECT deploy_label FROM images WHERE stack = ? AND service = ?`)
+    .get(stack, service) as { deploy_label: string | null } | undefined
+  return row?.deploy_label ?? null
 }
 
 function onClosed(prId: number, number: number): void {
