@@ -171,7 +171,7 @@ function resolveModelTier(
   number: number,
 ): EffectiveTierResolved {
   const { mode } = policy.model_tier
-  if (mode === 'off') return fallbackTier(rows, policy)
+  if (mode === 'off') return fallbackTier()
 
   const db = getDb()
   const now = new Date().toISOString()
@@ -203,7 +203,7 @@ function resolveModelTier(
       r.from_tag ?? null,
       r.to_tag ?? null,
       r.magnitude,
-      fallbackTier([r], policy),
+      fallbackTier(),
       a.promote ? 1 : 0,
       a.reason,
       JSON.stringify(a.guards),
@@ -219,30 +219,29 @@ function resolveModelTier(
       message: `#${number}: model would ${allPromote ? 'treat this as routine' : 'defer to a human'}`,
       detail: `${firstRefusal} — shadow mode, nothing acted on it`,
     })
-    return fallbackTier(rows, policy)
+    return fallbackTier()
   }
 
-  return allPromote ? 'auto' : fallbackTier(rows, policy)
+  return allPromote ? 'auto' : fallbackTier()
 }
 
 type EffectiveTierResolved = 'auto' | 'gated' | 'manual' | 'held' | 'skip'
 
-/** What static policy alone would have said, ignoring the model entirely. */
-function fallbackTier(rows: { magnitude: Magnitude }[], policy: Policy): EffectiveTierResolved {
-  const mags = rows.map((r) => r.magnitude)
-  if (mags.includes('major')) return 'manual'
-  const worst = mags.map((m) => asStatic(policy.defaults[m === 'digest' ? 'digest' : m]))
-  return worst.includes('manual')
-    ? 'manual'
-    : worst.includes('gated')
-      ? 'gated'
-      : worst.includes('skip')
-        ? 'skip'
-        : 'auto'
-}
-
-function asStatic(v: string): EffectiveTierResolved {
-  return v === 'auto' || v === 'gated' || v === 'manual' || v === 'skip' ? v : 'manual'
+/**
+ * Where a refused update lands.
+ *
+ * Always `manual` — a human — and deliberately not the magnitude default. `model`
+ * replaces whatever static label the service had, and dockhand cannot know what that
+ * was, so deriving the fallback from magnitude silently rewrites the operator's intent:
+ * a service pinned to `manual` that switches to `model` would land on `auto` for a
+ * patch the moment a guard refused. That is the opposite of what asking for review
+ * means, and it would be most wrong exactly where `manual` was chosen most carefully.
+ *
+ * So the contract is one sentence: routine if the model vouches for it, a human
+ * otherwise.
+ */
+function fallbackTier(): EffectiveTierResolved {
+  return 'manual'
 }
 
 function parseArray(v: string | null): string[] {

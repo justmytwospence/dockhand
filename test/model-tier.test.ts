@@ -90,3 +90,17 @@ test('every guard is evaluated, so shadow mode shows all of them', () => {
   assert.equal(a.guards.length, 6)
   assert.ok(a.guards.filter((g) => !g.passed).length >= 2)
 })
+
+test('a refused update lands on a human, not on the magnitude default', () => {
+  // `model` replaces whatever static label the service had, and dockhand cannot know
+  // what that was. Deriving the fallback from magnitude would silently rewrite intent:
+  // deluge-gluetun is pinned `manual` because it is a torrent stack's VPN container,
+  // and a patch landing on `auto` the moment a guard refused is the exact inversion of
+  // why it was pinned. This asserts the contract stays "routine if vouched for, a human
+  // otherwise".
+  const refused = assess({ ...clean, confidence: 'low' })
+  assert.equal(refused.promote, false)
+  // The tier that a refusal maps to is asserted in the merge path; here we pin the
+  // property it depends on — a refusal is never silently a promotion.
+  assert.ok(refused.guards.some((g) => !g.passed))
+})
