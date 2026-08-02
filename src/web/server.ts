@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
-import { env, loadPolicy, inBlackout } from '../config.ts'
+import { configured, env, loadPolicy, inBlackout } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { scanRepo, type ScannedService } from '../compose/scan.ts'
 import { buildUpdateDiff } from '../diff.ts'
@@ -41,6 +41,12 @@ const PENDING_SQL = `
   ORDER BY CASE u.magnitude WHEN 'major' THEN 0 WHEN 'minor' THEN 1
                             WHEN 'patch' THEN 2 ELSE 3 END, u.stack, u.service`
 
+/** Missing configuration, passed into every page so the banner is unmissable. */
+function missing(): { name: string; why: string }[] {
+  const s = configured()
+  return s.ok ? [] : s.missing
+}
+
 export function createApp(): Hono {
   const app = new Hono()
 
@@ -53,13 +59,13 @@ export function createApp(): Hono {
   app.get('/', (c) => {
     const { policy, error } = loadPolicy()
     const db = getDb()
-    const services = scanRepo(env.homelabRepo, policy.exclude_stacks)
+    const services = scanRepo(env.repoDir, policy.exclude_stacks)
     const pending = db.prepare(PENDING_SQL).all() as PendingRow[]
     const recent = db
       .prepare(`SELECT * FROM events ORDER BY at DESC LIMIT 10`)
       .all() as Record<string, unknown>[]
     return c.html(
-      Dashboard({
+      Dashboard({ missing: missing(),
         policy,
         policyError: error,
         services,
@@ -175,7 +181,7 @@ export function createApp(): Hono {
     const q = (c.req.query('q') ?? '').trim()
     const statusMap = statuses()
     const shown = filterServices(
-      scanRepo(env.homelabRepo, policy.exclude_stacks),
+      scanRepo(env.repoDir, policy.exclude_stacks),
       filter,
       q,
       statusMap,
@@ -184,7 +190,7 @@ export function createApp(): Hono {
     if (c.req.header('hx-request')) {
       return c.html(ImagesTable({ services: shown, statusMap }) as string)
     }
-    return c.html(ImagesPage({ services: shown, filter, q, statusMap }) as string)
+    return c.html(ImagesPage({ missing: missing(), services: shown, filter, q, statusMap }) as string)
   })
 
   /** Re-check one service, so a label edit can be confirmed without a 150s sweep. */
@@ -192,7 +198,7 @@ export function createApp(): Hono {
     const { policy } = loadPolicy()
     const stack = c.req.param('stack')
     const service = c.req.param('service')
-    const svc = scanRepo(env.homelabRepo, policy.exclude_stacks).find(
+    const svc = scanRepo(env.repoDir, policy.exclude_stacks).find(
       (s) => s.stack === stack && s.service === service,
     )
     if (!svc) return c.html('<tr><td colspan="6" class="sub">no such service</td></tr>', 404)
@@ -219,12 +225,12 @@ export function createApp(): Hono {
     if (c.req.header('hx-request')) {
       return c.html(ActivityTable({ rows, repo: env.githubRepo }) as string)
     }
-    return c.html(ActivityPage({ rows, filter: { kind, level }, repo: env.githubRepo }) as string)
+    return c.html(ActivityPage({ missing: missing(), rows, filter: { kind, level }, repo: env.githubRepo }) as string)
   })
 
   app.get('/settings', async (c) => {
     const { policy } = loadPolicy()
-    return c.html(SettingsPage({ policy, models: await listModels() }) as string)
+    return c.html(SettingsPage({ missing: missing(), policy, models: await listModels() }) as string)
   })
 
   app.post('/settings', async (c) => {
@@ -243,7 +249,7 @@ export function createApp(): Hono {
 
   app.get('/settings/raw', (c) => {
     try {
-      return c.html(RawPolicy({ text: readFile(paths.policy, 'utf8') }) as string)
+      return c.html(RawPolicy({ missing: missing(), text: readFile(paths.policy, 'utf8') }) as string)
     } catch (err) {
       return c.html(RawPolicy({ text: '', error: (err as Error).message }) as string)
     }
@@ -253,7 +259,7 @@ export function createApp(): Hono {
     const { policy, error } = loadPolicy()
     const budgets = getDb().prepare(`SELECT * FROM budgets`).all() as Record<string, unknown>[]
     return c.html(
-      SystemPage({
+      SystemPage({ missing: missing(),
         policy,
         policyError: error,
         budgets,

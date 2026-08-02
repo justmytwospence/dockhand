@@ -26,7 +26,7 @@ export type SyncResult =
   /** A real conflict a human must resolve. Nothing was touched. */
   | { status: 'refused'; reason: string }
 
-const HOMELAB = () => env.homelabRepo
+const HOMELAB = () => env.repoDir
 
 export async function syncMain(): Promise<SyncResult> {
   const { policy } = loadPolicy()

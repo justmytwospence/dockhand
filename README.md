@@ -62,42 +62,20 @@ Three git locations, with strict roles:
 
 ## Configuration
 
-Two layers, deliberately:
+Two layers, deliberately.
 
 **Per-service data** lives as labels on the service itself, so it travels with the thing
-it describes:
+it describes — and is read from the compose files rather than from running containers,
+so editing one takes effect on the next scan with nothing recreated.
 
-```yaml
-labels:
-  dockhand.watch: "true"
-  dockhand.pattern: semver          # semver|v-semver|major-only|v-major-only|lsio-ls
-                                    #   |lsio-r-ls|date|digest|latest|regex
-  dockhand.tag.include: '^\d{1,3}\.\d+\.\d+$$'   # optional refinement
-  dockhand.policy: gated            # optional: auto|gated|manual|skip
-  dockhand.source: https://github.com/miniflux/v2   # optional resolver override
-  dockhand.claude: required         # optional: fail-closed if analysis is unavailable
-  dockhand.deploy: rm-first         # optional: rm -sf before up -d (re-reads image env)
-```
+**Policy semantics** live once, centrally, in `policy.yaml`, never restated per service.
+That separation matters more than it looks: the repository this was built against had
+previously copy-pasted a six-clause trigger string onto 94 services, and a deliberate
+carve-out got silently reverted in a refactor because nobody could see the policy in one
+place.
 
-**Policy semantics** live once, centrally, in `policy.yaml` — never restated per service.
-That separation is the whole point: the repo this was built for previously carried a
-six-clause trigger string copy-pasted onto 94 services, and a policy carve-out got
-silently reverted in a refactor because of it.
-
-```yaml
-merge_method: squash
-sync:
-  push_main: true
-  blackout: ["00:45-02:30"]
-defaults:
-  patch: auto
-  minor: auto
-  major: manual        # forced regardless; majors never auto-merge
-  digest: manual
-claude:
-  mode: advisory
-  min_confidence: medium
-```
+Both are covered with examples under [Running it yourself](#running-it-yourself), and
+the policy file is editable from the Settings page.
 
 ## The policy model
 
@@ -117,11 +95,131 @@ one. Majors and gated services are never auto-merged, and that is not configurab
 This is also the prompt-injection boundary: release notes are untrusted input, and the
 worst a hostile changelog can achieve is to stop an update.
 
+## Running it yourself
+
+dockhand watches a git repository full of Docker Compose files, so it needs to know
+which repository and where that checkout lives on disk. Nothing else is required to
+start.
+
+### Environment
+
+| Variable | Required | Default | What it is |
+|---|---|---|---|
+| `REPO_DIR` | **yes** | — | The checkout of your compose repository. Must be bind-mounted at the *identical* path inside the container (see below). |
+| `GITHUB_REPO` | **yes** | — | `owner/repo` of that repository, for pull requests. |
+| `GITHUB_TOKEN` | for PRs | — | Fine-grained PAT scoped to that repo: **Contents** read+write, **Pull requests** read+write. |
+| `ANTHROPIC_API_KEY` | for analysis | — | Without it PRs still open, labelled `needs-analysis`. |
+| `POLICY_FILE` | no | `$REPO_DIR/dockhand/config/policy.yaml` | Where the tracked policy file lives. |
+| `SELF_STACK` | no | `dockhand` | Stack directory holding dockhand, excluded so it never updates itself. |
+| `BOT_EMAIL` | no | `dockhand@localhost` | Git author for dockhand's commits. |
+| `DATA_DIR` | no | `/data` | SQLite database and dockhand's own working clone. |
+| `PORT` / `TZ` | no | `8080` / `UTC` | |
+| `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN` | no | — | Push notifications. Unset means no notifications. |
+| `DOCKER_HUB_LOGIN` / `_PASSWORD` | no | — | Doubles the Docker Hub pull allowance (100→200 per 6h). |
+
+Start it with nothing set and it will tell you what is missing rather than crash-loop.
+
+### Why the mount path must match
+
+`docker compose` resolves relative volume paths (`./data`) and derives the project name
+**client-side**, before it talks to the daemon. If dockhand saw your repo at a different
+path than the host does, it would hand the daemon paths that do not exist. So the bind
+mount is `/your/path:/your/path`, not `/your/path:/repo`.
+
+```yaml
+services:
+  dockhand:
+    build: ./app          # or image: ghcr.io/justmytwospence/dockhand:latest
+    restart: unless-stopped
+    user: "1000:1000"     # match the owner of the checkout
+    environment:
+      REPO_DIR: /srv/compose
+      GITHUB_REPO: you/your-compose-repo
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - /srv/compose:/srv/compose                  # identical path, read-write
+      - ./data:/data                               # create it first: mkdir -p data
+      - /var/run/docker.sock:/var/run/docker.sock  # deploys run compose
+    ports:
+      - "8080:8080"
+```
+
+Put a web server with authentication in front of it. The UI has no login of its own,
+because it is designed to sit behind one you already run.
+
+### Labelling services
+
+dockhand only watches services that opt in, via labels on the service in your compose
+file. It reads them from the **files**, not from running containers, so a label change
+takes effect on the next scan without recreating anything.
+
+```yaml
+    labels:
+      dockhand.watch: "true"
+      dockhand.pattern: semver     # semver | v-semver | semver-minor | v-semver-minor
+                                   #  | semver-quad | major-only | v-major-only
+                                   #  | semver-variant | semver-minor-variant
+                                   #  | major-variant | lsio-ls | lsio-r-ls | date
+                                   #  | digest | latest | regex
+      # Optional:
+      dockhand.tag.include: '^\d{1,3}\.\d+\.\d+$$'  # narrow the candidates ($$ escapes $)
+      dockhand.policy: gated       # auto | gated | manual | skip
+      dockhand.pr: on-request      # detect and show, but only open a PR when asked
+      dockhand.source: https://github.com/owner/repo   # if the image lacks an OCI source label
+      dockhand.claude: required    # refuse to auto-merge without a verdict
+      dockhand.group: mygroup      # force services into one PR
+      dockhand.deploy: rm-first    # recreate rather than update (re-reads image env)
+```
+
+If you already label services for another updater, `npm run migrate-labels` derives
+`dockhand.*` labels from `wud.*` ones and writes them in place, validating each
+refinement against the tag actually pinned.
+
+### Policy
+
+A starter `policy.yaml`, which the Settings page also edits for you:
+
+```yaml
+merge_method: squash          # must match what your repo allows
+prs:
+  enabled: true
+  scope: coexist              # coexist | full -- see below
+  max_open: 5
+defaults:
+  patch: auto
+  minor: auto
+  major: manual               # forced; majors always need a human
+  digest: manual
+claude:
+  mode: advisory              # advisory | off
+  model: claude-haiku-4-5-20251001
+  min_confidence: medium
+  monthly_budget_usd: 10
+scan:
+  cron: "0 0 3 * * *"         # seconds first
+```
+
+`scope: coexist` is for running alongside an updater that already applies routine
+patches itself — dockhand then takes only what such a tool leaves alone (majors, digest
+pins, anything not on the auto tier), so the two can never write to the same file for
+the same reason. Use `full` when dockhand is your only updater.
+
+### One-time repository settings
+
+Allow the merge method you configured, and enable auto-delete of head branches.
+dockhand pushes `main` as part of its loop: a branch cut from a stale `origin/main`
+silently reverts unpushed local commits when it merges, so publishing is a
+precondition, not a preference. `sync.push_main: false` disables it, which also
+disables pull requests.
+
+
 ## Status
 
-Under construction, milestone by milestone. M0 (scaffold, read-only inventory) is what
-exists today; the registry poller, PR engine, analyzer, and deploy loop follow. Nothing
-writes to git or Docker until the milestone that introduces it.
+Working today: detection across every registry, digest watching, grouped pull requests,
+changelog analysis with merge/hold verdicts, and a web UI. Merged pull requests are
+synced into the checkout and the deploy command is sent to you; running it
+automatically, and auto-merging what policy allows, is the next milestone.
 
 ## Licence
 

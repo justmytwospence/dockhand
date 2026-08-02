@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 import { paths } from './config.ts'
 
 /**
- * Runtime state only. Policy is tracked YAML in the homelab repo; per-service config is
+ * Runtime state only. Policy is tracked YAML in the watched repository; per-service config is
  * `dockhand.*` labels in the compose files. Everything here except verdict/cost history
  * is reconstructible from the registries, git, and those two sources.
  */

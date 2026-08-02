@@ -1,5 +1,5 @@
 import { Cron } from 'croner'
-import { env, inBlackout, loadPolicy } from './config.ts'
+import { configured, env, inBlackout, loadPolicy } from './config.ts'
 import { logEvent } from './db.ts'
 import { runAnalysisPass } from './analyze/run.ts'
 import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
@@ -11,7 +11,7 @@ import { runScan } from './scan.ts'
  *
  * The cron string is re-read from policy.yaml on every fire, so editing the schedule
  * takes effect without restarting the container -- consistent with the rest of the
- * config, which is tracked in the homelab repo rather than baked into the image.
+ * config, which is tracked in the watched repository rather than baked into the image.
  */
 
 let job: Cron | null = null
@@ -19,6 +19,18 @@ let currentExpression = ''
 let deferTimer: NodeJS.Timeout | null = null
 
 export function startScheduler(): void {
+  const setup = configured()
+  if (!setup.ok) {
+    // Nothing can run without knowing which repository to watch. Say so once, plainly,
+    // and let the web UI carry the instructions.
+    logEvent({
+      level: 'warn',
+      kind: 'system',
+      message: 'not configured yet — scanning and pull requests are standing by',
+      detail: setup.missing.map((m) => m.name).join(', '),
+    })
+    return
+  }
   schedule()
   startPrLoop()
 }

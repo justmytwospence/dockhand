@@ -98,7 +98,7 @@ export type AutoMergeDecision =
  *
  * Note the deliberate asymmetry on `unavailable`: by default an absent verdict falls
  * back to the static policy (fail-open), because the static policy is exactly what runs
- * today under WUD -- an Anthropic outage must not freeze every update in the homelab.
+ * today without any analysis at all -- a provider outage must not freeze every update.
  * Services that would rather stall than proceed unread carry `dockhand.claude: required`.
  */
 export function canAutoMerge(i: AutoMergeInput): AutoMergeDecision {
@@ -138,13 +138,14 @@ export function canAutoMerge(i: AutoMergeInput): AutoMergeDecision {
 /**
  * Whether the PR engine should open a PR for this update at all.
  *
- * Under `wud-coexist` (the setting while WUD still runs), dockhand only handles what
- * WUD's auto trigger never touches -- majors, digests, and anything not on the auto
- * tier. The two tools therefore cannot write to the same file for the same reason, by
- * construction rather than by timing. Drop this to `full` when WUD retires.
+ * `coexist` is for running alongside another updater that already applies routine
+ * patches and minors itself: dockhand takes only what such a tool leaves alone --
+ * majors, digest pins, and anything not on the auto tier -- so the two can never write
+ * to the same file for the same reason. Not by timing, by construction. `full` takes
+ * over everything and is the right setting once dockhand is the only updater.
  */
 export function shouldOpenPr(opts: {
-  scope: 'wud-coexist' | 'full'
+  scope: 'coexist' | 'full'
   tier: EffectiveTier
   magnitude: Magnitude
   /** Rolling `latest` movement has nothing to change in git. */

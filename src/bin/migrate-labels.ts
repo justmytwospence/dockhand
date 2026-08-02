@@ -278,7 +278,7 @@ function escapeRe(s: string): string {
 
 function main(): void {
   const dry = process.argv.includes('--dry')
-  const services = scanRepo(env.homelabRepo, ['dockhand'])
+  const services = scanRepo(env.repoDir, ['dockhand'])
 
   const plans: Plan[] = []
   const skipped: string[] = []
@@ -302,7 +302,7 @@ function main(): void {
   let written = 0
   let failed = 0
   for (const [file, filePlans] of byFile) {
-    const abs = join(env.homelabRepo, file)
+    const abs = join(env.repoDir, file)
     let text = readFileSync(abs, 'utf8')
     const before = text
     // Apply bottom-up so earlier insertions do not shift later line numbers.

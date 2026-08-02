@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import type { ScannedService } from '../../compose/scan.ts'
-import { Layout, Banner, Empty, Table } from './layout.tsx'
+import { Layout, Banner, Empty, Table, type MissingSetting } from './layout.tsx'
 
 export interface PendingRow {
   id: number
@@ -49,12 +49,13 @@ export const Dashboard: FC<{
   blackout: boolean
   scan: ScanInfo
   repo: string
-}> = ({ policyError, services, pending, recent, blackout, scan, repo }) => {
+  missing?: MissingSetting[]
+}> = ({ policyError, services, pending, recent, blackout, scan, repo, missing }) => {
   const watched = services.filter((s) => s.watched)
   const unwatchable = services.filter((s) => s.unwatchable)
 
   return (
-    <Layout title="Dashboard" path="/">
+    <Layout title="Dashboard" path="/" missing={missing}>
       {policyError && <Banner kind="error">{policyError}</Banner>}
       {blackout && (
         <Banner kind="info">

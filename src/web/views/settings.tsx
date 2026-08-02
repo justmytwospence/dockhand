@@ -1,14 +1,15 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import { SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
-import { Layout, Banner } from './layout.tsx'
+import { Layout, Banner, type MissingSetting } from './layout.tsx'
 
 export const SettingsPage: FC<{
   policy: Policy
   models: string[]
   result?: { ok: true; applied: string[]; commit: string | null } | { ok: false; errors: string[] }
-}> = ({ policy, models, result }) => (
-  <Layout title="Settings" path="/settings">
+  missing?: MissingSetting[]
+}> = ({ policy, models, result, missing }) => (
+  <Layout title="Settings" path="/settings" missing={missing}>
     <h2>Settings</h2>
     <p class="sub">
       These are the contents of <code>dockhand/config/policy.yaml</code>. Saving edits that
@@ -161,8 +162,8 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
   }
 }
 
-export const RawPolicy: FC<{ text: string; error?: string }> = ({ text, error }) => (
-  <Layout title="policy.yaml" path="/settings">
+export const RawPolicy: FC<{ text: string; error?: string; missing?: MissingSetting[] }> = ({ text, error, missing }) => (
+  <Layout title="policy.yaml" path="/settings" missing={missing}>
     <h2>policy.yaml</h2>
     <p class="sub">
       The file as it exists on disk, comments and all. <a href="/settings">&larr; Back to settings</a>

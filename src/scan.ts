@@ -1,4 +1,4 @@
-import { env, loadPolicy, type Policy } from './config.ts'
+import { configured, env, loadPolicy, type Policy } from './config.ts'
 import { getDb, logEvent } from './db.ts'
 import { scanRepo, type ScannedService } from './compose/scan.ts'
 import { detect, type Detection } from './detect.ts'
@@ -31,6 +31,10 @@ export function isScanning(): boolean {
 
 export async function runScan(trigger: 'cron' | 'manual'): Promise<ScanResult> {
   if (running) return { status: 'already-running' }
+  const setup = configured()
+  if (!setup.ok) {
+    return { status: 'completed', counts: { unconfigured: setup.missing.length }, durationS: 0 }
+  }
   running = true
   const started = Date.now()
   const counts: Record<string, number> = {}
@@ -38,7 +42,7 @@ export async function runScan(trigger: 'cron' | 'manual'): Promise<ScanResult> {
 
   try {
     const { policy } = loadPolicy()
-    const services = scanRepo(env.homelabRepo, policy.exclude_stacks)
+    const services = scanRepo(env.repoDir, policy.exclude_stacks)
     syncInventory(services)
 
     for (const svc of services) {

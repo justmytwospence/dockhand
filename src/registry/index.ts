@@ -129,7 +129,7 @@ interface OciTagList {
  * returned: the walk either completes or raises TagListTooLarge, and the caller falls
  * back to release-driven probing (see probe.ts).
  *
- * Measured across this homelab: the median ghcr repo is 3 pages. The outliers are
+ * Measured across one real deployment: the median ghcr repo is 3 pages. The outliers are
  * hopeless rather than merely slow -- immich-machine-learning is past 148,000 tags and
  * still paginating after 3 minutes, openhands ~70,000 -- because they tag every commit
  * and PR. So the cap is set low enough to bail out quickly and hand over to the probe,

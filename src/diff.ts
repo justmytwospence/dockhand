@@ -62,7 +62,7 @@ export function buildUpdateDiff(updateId: number): DiffResult {
     }
   }
 
-  const abs = join(env.homelabRepo, row.compose_file)
+  const abs = join(env.repoDir, row.compose_file)
   let src: string
   try {
     src = readFileSync(abs, 'utf8')

@@ -5,7 +5,7 @@ import { registryFetch } from './http.ts'
  * Release-driven candidate probing.
  *
  * Some repositories publish a tag per commit and per pull request. Measured on this
- * homelab: `ghcr.io/immich-app/immich-machine-learning` is past 148,000 tags and still
+ * one real deployment: `ghcr.io/immich-app/immich-machine-learning` is past 148,000 tags and still
  * paginating after three minutes, and `docker.openhands.dev/openhands/openhands` carries
  * ~70,000. Enumerating those to find one release tag is hopeless, and ghcr returns tags
  * oldest-first so a truncated walk finds nothing useful.

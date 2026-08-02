@@ -7,10 +7,11 @@ import { parseImageRef, type ImageRef } from '../images/ref.ts'
  * Reads the desired state out of the compose files themselves.
  *
  * Critically, `dockhand.*` labels are read HERE -- from the files in git -- and never
- * from running containers. WUD reads live Docker metadata, which is why a label
- * refactor in this repo sat inert on ~80 containers for weeks (AGENTS.md, incident
- * ad98576): its recreate clones the running container's config, so stale labels
- * survive forever. Parsing files makes that entire failure class impossible.
+ * from running containers. Updaters that read live Docker metadata inherit a nasty
+ * failure: recreating a container by cloning its running config means a label edited in
+ * the compose file never takes effect, and the stale value survives every subsequent
+ * update. Observed in the wild on ~80 containers for weeks. Parsing files makes that
+ * entire class impossible.
  */
 
 export type UnwatchableReason = 'build' | 'interpolated' | 'no-image' | 'disabled' | 'excluded'
@@ -46,6 +47,9 @@ const SKIP_DIRS = new Set(['.git', '.claude', '.agents', 'bin', 'node_modules'])
 /** Every `<stack>/docker-compose.yaml` plus the root infrastructure compose. */
 export function findComposeFiles(repoRoot: string): string[] {
   const out: string[] = []
+  // An unset or missing repository is a configuration state, not an error: the UI
+  // renders setup instructions, and every caller here should simply see no services.
+  if (!repoRoot || !isReadableDir(repoRoot)) return out
   const root = join(repoRoot, 'docker-compose.yaml')
   if (exists(root)) out.push(root)
   for (const entry of readdirSync(repoRoot, { withFileTypes: true })) {
@@ -54,6 +58,14 @@ export function findComposeFiles(repoRoot: string): string[] {
     if (exists(f)) out.push(f)
   }
   return out.sort()
+}
+
+function isReadableDir(p: string): boolean {
+  try {
+    return statSync(p).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 function exists(p: string): boolean {

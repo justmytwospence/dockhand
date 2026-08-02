@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
+import { relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { Cron } from 'croner'
-import { env, paths, validatePolicyText, type Policy } from './config.ts'
+import { botIdentity, env, paths, validatePolicyText, type Policy } from './config.ts'
 import { logEvent } from './db.ts'
 
 /**
@@ -106,10 +107,10 @@ export const SETTINGS: SettingDef[] = [
     section: 'Pull requests',
     path: 'prs.scope',
     kind: 'enum',
-    options: ['wud-coexist', 'full'],
-    defaultValue: 'wud-coexist',
+    options: ['coexist', 'full'],
+    defaultValue: 'coexist',
     label: 'Coverage',
-    help: 'Coexist handles only what the legacy updater never touches. Full takes over everything.',
+    help: 'Coexist takes only what another updater leaves alone. Full takes over everything.',
   },
   {
     section: 'Pull requests',
@@ -226,6 +227,8 @@ export type ApplyResult =
 
 export function applySettings(changes: Record<string, string>): ApplyResult {
   const file = paths.policy
+  // Git wants the path relative to the repository root, wherever policy.yaml lives.
+  const rel = relative(env.repoDir, file)
   let original: string
   try {
     original = readFileSync(file, 'utf8')
@@ -235,7 +238,7 @@ export function applySettings(changes: Record<string, string>): ApplyResult {
 
   // Never fold a browser edit into hand-edits sitting in the working tree -- the commit
   // would carry changes nobody reviewed here.
-  const dirty = gitOut(['diff', '--name-only', '--', 'dockhand/config/policy.yaml'])
+  const dirty = gitOut(['diff', '--name-only', '--', rel])
   if (dirty) {
     return {
       ok: false,
@@ -280,27 +283,22 @@ export function applySettings(changes: Record<string, string>): ApplyResult {
 
   writeFileSync(file, text)
   try {
-    execFileSync('git', ['add', '--', 'dockhand/config/policy.yaml'], { cwd: env.homelabRepo })
+    execFileSync('git', ['add', '--', rel], { cwd: env.repoDir })
     execFileSync(
       'git',
       [
-        '-c',
-        'user.name=dockhand',
-        '-c',
-        `user.email=dockhand@${process.env.DOMAIN ?? 'localhost'}`,
+        ...botIdentity(),
         'commit',
         '-m',
         `chore(dockhand): settings: ${applied.join(', ')}`,
         '--',
-        'dockhand/config/policy.yaml',
+        rel,
       ],
-      { cwd: env.homelabRepo },
+      { cwd: env.repoDir },
     )
   } catch (err) {
     writeFileSync(file, original)
-    execFileSync('git', ['checkout', '--', 'dockhand/config/policy.yaml'], {
-      cwd: env.homelabRepo,
-    })
+    execFileSync('git', ['checkout', '--', rel], { cwd: env.repoDir })
     return { ok: false, errors: [`could not commit the change: ${(err as Error).message}`] }
   }
 
@@ -316,7 +314,7 @@ export function applySettings(changes: Record<string, string>): ApplyResult {
 
 function gitOut(args: string[]): string {
   try {
-    return execFileSync('git', args, { cwd: env.homelabRepo, encoding: 'utf8' }).trim()
+    return execFileSync('git', args, { cwd: env.repoDir, encoding: 'utf8' }).trim()
   } catch {
     return ''
   }

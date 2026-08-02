@@ -1,42 +1,98 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { isAbsolute, join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod'
 
 /**
  * Process-level constants come from the environment; everything the operator tunes
- * lives in the tracked policy.yaml inside the homelab repo. Per-service data and
- * exceptions live as `dockhand.*` labels on the services themselves -- read from the
- * compose files, never from running containers.
+ * lives in the tracked policy.yaml inside the repository being watched. Per-service
+ * data and exceptions live as `dockhand.*` labels on the services themselves -- read
+ * from the compose files, never from running containers.
+ *
+ * Nothing here carries a default that assumes a particular deployment. The two values
+ * that cannot be guessed -- which repository to watch, and where it lives on disk --
+ * are required, and their absence produces setup instructions rather than a crash.
  */
 
 export const env = {
-  /** The live homelab checkout. Mounted at the identical path inside the container so
-   *  `docker compose` resolves relative volume paths and the project name the same way
-   *  a host-side invocation would. */
-  homelabRepo: process.env.HOMELAB_REPO ?? '/home/spencer/homelab',
+  /** The checkout of the compose repository. Must be mounted at the identical path
+   *  inside the container: `docker compose` resolves relative volume paths and derives
+   *  the project name client-side, so a different in-container path would hand the
+   *  daemon paths that do not exist. */
+  repoDir: process.env.REPO_DIR ?? process.env.HOMELAB_REPO ?? '',
   dataDir: process.env.DATA_DIR ?? '/data',
   port: Number(process.env.PORT ?? 8080),
   tz: process.env.TZ ?? 'UTC',
 
   githubToken: process.env.GITHUB_TOKEN ?? '',
-  githubRepo: process.env.GITHUB_REPO ?? 'justmytwospence/homelab',
+  /** `owner/repo` of the repository that holds the compose files. */
+  githubRepo: process.env.GITHUB_REPO ?? '',
+  /** Stack directory holding dockhand itself, hard-excluded so it never updates or
+   *  deploys over its own running container. */
+  selfStack: process.env.SELF_STACK ?? 'dockhand',
+  /** Git author for commits dockhand makes, so its work is distinguishable in the log. */
+  botEmail: process.env.BOT_EMAIL ?? 'dockhand@localhost',
+
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
-  ntfyUrl: process.env.NTFY_URL ?? 'http://ntfy:80',
-  ntfyTopic: process.env.NTFY_TOPIC ?? 'container-updates',
+  ntfyUrl: process.env.NTFY_URL ?? '',
+  ntfyTopic: process.env.NTFY_TOPIC ?? 'dockhand',
   ntfyToken: process.env.NTFY_TOKEN ?? '',
   dockerHubLogin: process.env.DOCKER_HUB_LOGIN ?? '',
   dockerHubPassword: process.env.DOCKER_HUB_PASSWORD ?? '',
 } as const
 
+/** Where policy.yaml lives. Defaults inside the watched repo so it is tracked and
+ *  reviewable like everything else; POLICY_FILE overrides for any other layout. */
+function policyPath(): string {
+  const explicit = process.env.POLICY_FILE
+  if (explicit) return isAbsolute(explicit) ? explicit : join(env.repoDir, explicit)
+  return join(env.repoDir, env.selfStack, 'config', 'policy.yaml')
+}
+
 export const paths = {
   db: join(env.dataDir, 'dockhand.db'),
-  /** The tool's own clone. All branch/edit/commit/push work happens here so the user's
-   *  live checkout -- which habitually carries uncommitted WIP -- is never disturbed. */
+  /** The tool's own clone. All branch/edit/commit/push work happens here so the
+   *  checkout -- which routinely carries uncommitted work -- is never disturbed. */
   workRepo: join(env.dataDir, 'repo'),
   lock: join(env.dataDir, 'git.lock'),
-  policy: join(env.homelabRepo, 'dockhand', 'config', 'policy.yaml'),
+  policy: policyPath(),
 } as const
+
+/** Git author arguments for tool-authored commits. */
+export function botIdentity(): string[] {
+  return ['-c', 'user.name=dockhand', '-c', `user.email=${env.botEmail}`]
+}
+
+export interface MissingSetting {
+  name: string
+  why: string
+}
+
+/**
+ * Whether dockhand has enough configuration to do anything at all.
+ *
+ * A fresh deployment with nothing set serves setup instructions instead of
+ * crash-looping: the scheduler, git operations and analysis all stand down, and every
+ * page explains what is missing. Being told what to set beats reading restart logs.
+ */
+export function configured(): { ok: true } | { ok: false; missing: MissingSetting[] } {
+  const missing: MissingSetting[] = []
+  if (!env.repoDir) {
+    missing.push({
+      name: 'REPO_DIR',
+      why: 'path to the checkout of your compose repository, mounted at the same path inside the container',
+    })
+  } else if (!existsSync(env.repoDir)) {
+    missing.push({
+      name: 'REPO_DIR',
+      why: `"${env.repoDir}" does not exist inside the container -- check the bind mount uses the identical host path`,
+    })
+  }
+  if (!env.githubRepo.includes('/')) {
+    missing.push({ name: 'GITHUB_REPO', why: 'the repository to open pull requests against, as owner/repo' })
+  }
+  return missing.length === 0 ? { ok: true } : { ok: false, missing }
+}
 
 const Tier = z.enum(['auto', 'gated', 'manual', 'skip'])
 export type Tier = z.infer<typeof Tier>
@@ -90,10 +146,14 @@ const PolicySchema = z.object({
     .prefault({}),
   prs: z
     .object({
-      // wud-coexist: only handle what WUD's auto trigger never touches (majors,
-      // digests, non-auto tiers) so the two tools cannot contend for the same file.
-      // Switch to `full` when WUD retires at M6.
-      scope: z.enum(['wud-coexist', 'full']).default('wud-coexist'),
+      // coexist: only handle what another updater would never touch on its own
+      // (majors, digest pins, anything not on the auto tier), so two tools cannot
+      // contend for the same file. `full` takes over everything.
+      // `wud-coexist` is accepted as the original spelling of `coexist`.
+      scope: z
+        .enum(['coexist', 'wud-coexist', 'full'])
+        .default('coexist')
+        .transform((v) => (v === 'wud-coexist' ? ('coexist' as const) : v)),
       // Ceiling on simultaneously open pull requests. A backlog of 21 arriving at once
       // is not a review queue, it is a wall -- and every one of them would need
       // rebasing as the others merge. New PRs open as older ones are merged or closed.
@@ -133,7 +193,8 @@ export function loadPolicy(): { policy: Policy; error?: string } {
   if (cached?.raw === raw) return { policy: cached.policy }
   try {
     const parsed = PolicySchema.parse(parseYaml(raw) ?? {})
-    parsed.exclude_stacks = [...new Set([...parsed.exclude_stacks, 'dockhand'])]
+    // The tool's own stack is always excluded, whatever the operator wrote.
+    parsed.exclude_stacks = [...new Set([...parsed.exclude_stacks, env.selfStack])]
     cached = { policy: parsed, raw }
     return { policy: parsed }
   } catch (err) {

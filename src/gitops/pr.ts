@@ -1,5 +1,5 @@
 import { Octokit } from 'octokit'
-import { env, loadPolicy, type Policy } from '../config.ts'
+import { configured, env, loadPolicy, type Policy } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { scanRepo } from '../compose/scan.ts'
 import { parseImageRef, formatImageRef } from '../images/ref.ts'
@@ -71,6 +71,11 @@ export async function runPrPass(): Promise<PrRunResult> {
     const { policy } = loadPolicy()
     const out: PrRunResult = { opened: 0, skipped: 0, failed: 0 }
 
+    const setup = configured()
+    if (!setup.ok) {
+      out.paused = `not configured: ${setup.missing.map((m) => m.name).join(', ')}`
+      return out
+    }
     if (!env.githubToken) {
       out.paused = 'GITHUB_TOKEN is not set'
       return out
@@ -159,7 +164,7 @@ function eligibleGroups(policy: Policy): UpdateGroup[] {
   )
   if (candidates.length === 0) return []
 
-  const services = scanRepo(env.homelabRepo, policy.exclude_stacks)
+  const services = scanRepo(env.repoDir, policy.exclude_stacks)
   const { sourceRepoFor, groupLabelFor } = makeLookups(services)
   return groupUpdates(candidates, sourceRepoFor, groupLabelFor)
 }

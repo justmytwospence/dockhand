@@ -1,5 +1,5 @@
 import type { FC } from 'hono/jsx'
-import { Layout, Empty, Table } from './layout.tsx'
+import { Layout, Empty, Table, type MissingSetting } from './layout.tsx'
 
 export const KINDS = ['scan', 'policy', 'pr', 'analysis', 'deploy', 'sync', 'system'] as const
 
@@ -12,8 +12,9 @@ export const ActivityPage: FC<{
   rows: Record<string, unknown>[]
   filter: ActivityFilter
   repo: string
-}> = ({ rows, filter, repo }) => (
-  <Layout title="Activity" path="/activity">
+  missing?: MissingSetting[]
+}> = ({ rows, filter, repo, missing }) => (
+  <Layout title="Activity" path="/activity" missing={missing}>
     <h2>Activity log</h2>
     <p class="sub">Every recorded event, newest first.</p>
 

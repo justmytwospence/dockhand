@@ -8,11 +8,14 @@ const NAV = [
   ['/system', 'System'],
 ] as const
 
-export const Layout: FC<PropsWithChildren<{ title: string; path: string }>> = ({
-  title,
-  path,
-  children,
-}) => (
+export interface MissingSetting {
+  name: string
+  why: string
+}
+
+export const Layout: FC<
+  PropsWithChildren<{ title: string; path: string; missing?: MissingSetting[] }>
+> = ({ title, path, missing, children }) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -42,7 +45,10 @@ export const Layout: FC<PropsWithChildren<{ title: string; path: string }>> = ({
           </nav>
         </div>
       </header>
-      <main>{children}</main>
+      <main>
+        {missing && missing.length > 0 && <Setup missing={missing} />}
+        {children}
+      </main>
     </body>
   </html>
 )
@@ -61,4 +67,43 @@ export const Table: FC<PropsWithChildren<{ kv?: boolean }>> = ({ kv, children })
 
 export const Empty: FC<{ children?: unknown }> = ({ children }) => (
   <p class="empty">{children}</p>
+)
+
+/** Shown until dockhand knows which repository to watch. */
+const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
+  <div class="banner warn setup">
+    <strong>dockhand is not configured yet.</strong>
+    <p>Set the following, then restart the container:</p>
+    <table class="kv">
+      <tbody>
+        {missing.map((m) => (
+          <tr>
+            <th class="mono">{m.name}</th>
+            <td>{m.why}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p>A minimal compose service looks like this:</p>
+    <pre class="rawfile">{`services:
+  dockhand:
+    image: ghcr.io/justmytwospence/dockhand:latest   # or build: ./app
+    environment:
+      # The path must be identical inside and outside the container.
+      REPO_DIR: /srv/compose
+      GITHUB_REPO: you/your-compose-repo
+      GITHUB_TOKEN: \${GITHUB_TOKEN}     # fine-grained: Contents rw, Pull requests rw
+      ANTHROPIC_API_KEY: \${ANTHROPIC_API_KEY}   # optional: changelog analysis
+    volumes:
+      - /srv/compose:/srv/compose
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock`}</pre>
+    <p>
+      Full instructions are in the{' '}
+      <a class="ext" href="https://github.com/justmytwospence/dockhand#readme" target="_blank" rel="noopener">
+        README
+      </a>
+      .
+    </p>
+  </div>
 )

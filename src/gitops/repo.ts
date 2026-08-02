@@ -1,6 +1,6 @@
 import { execa, type Options } from 'execa'
 import { existsSync, rmSync } from 'node:fs'
-import { env, paths } from '../config.ts'
+import { botIdentity, env, paths } from '../config.ts'
 import { logEvent } from '../db.ts'
 
 /**
@@ -89,15 +89,7 @@ export async function ensureWorkRepo(): Promise<string> {
 }
 
 /** Identity for tool-authored commits, so `git log` distinguishes them from the human. */
-export function authorArgs(): string[] {
-  const domain = env.ntfyUrl.includes('://') ? new URL(env.ntfyUrl).hostname : 'localhost'
-  return [
-    '-c',
-    'user.name=dockhand',
-    '-c',
-    `user.email=dockhand@${process.env.DOMAIN ?? domain}`,
-  ]
-}
+export const authorArgs = botIdentity
 
 // ------------------------------------------------------------------- locking
 

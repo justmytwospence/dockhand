@@ -6,8 +6,8 @@ import { getDb } from './db.ts'
  * Immich pins immich-server and immich-machine-learning at the same version and does
  * not support running them skewed. If each got its own PR, merging one without the
  * other would leave the stack broken until someone noticed. The same shape applies to
- * scanopy's daemon/server pair, homelable's frontend/backend, and n8n's two containers
- * off one image.
+ * any daemon/server or frontend/backend pair released in lockstep, and to two containers
+ * sharing one image.
  *
  * This is deliberately not a dependency engine -- it is four known pairs and a rule
  * that catches them.

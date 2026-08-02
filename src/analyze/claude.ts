@@ -10,7 +10,8 @@ import { parseImageRef } from '../images/ref.ts'
  *
  * This is the part Renovate structurally cannot do. Renovate finds release notes through
  * the image's OCI source annotation and renders whatever it gets; when the annotation is
- * missing or points at a packaging repo -- about half the images in this homelab -- it
+ * missing or points at a packaging repo -- about half the images in a typical
+ * self-hosted setup -- it
  * shows nothing. Here the model can search for the project, read what it finds, and say
  * what actually changed.
  *
@@ -81,7 +82,7 @@ const EMIT_VERDICT = {
 }
 
 const SYSTEM = `You judge whether a single Docker image update is safe to apply to a
-self-hosted homelab, then call emit_verdict exactly once.
+self-hosted deployment, then call emit_verdict exactly once.
 
 Be adversarial about anything that breaks a running deployment: removed or renamed
 environment variables, changed config file formats, database schema migrations that are
@@ -158,7 +159,7 @@ export async function analyze(target: AnalyzeTarget): Promise<Verdict | { error:
       return { error: 'the model did not return a verdict' }
     }
     const verdict = normalise(call.input as Partial<Verdict>)
-    recordCost(res.usage, policy)
+    recordCost(res.usage, policy, policy.claude.model)
     return verdict
   } catch (err) {
     return { error: (err as Error).message.slice(0, 300) }
@@ -234,17 +235,45 @@ function normalise(v: Partial<Verdict>): Verdict {
   }
 }
 
-/** Haiku 4.5 pricing, per million tokens. Used only for the spend ledger. */
-const PRICE_IN = 1.0
-const PRICE_OUT = 5.0
+/**
+ * Per-million-token pricing by model family, for the spend ledger only.
+ *
+ * Matched by prefix so a new dated release of a known family is priced correctly the
+ * day it ships. An unrecognised model is billed at the most expensive rate rather than
+ * the cheapest: a budget that under-counts silently overspends, which is the failure
+ * that actually costs money.
+ */
+const PRICING: { prefix: string; in: number; out: number }[] = [
+  { prefix: 'claude-opus-', in: 15, out: 75 },
+  { prefix: 'claude-sonnet-', in: 3, out: 15 },
+  { prefix: 'claude-haiku-', in: 1, out: 5 },
+]
 const PRICE_SEARCH = 10 / 1000
 
-function recordCost(usage: Anthropic.Usage, policy: Policy): void {
+let warnedUnknownModel = ''
+
+function priceFor(model: string): { in: number; out: number } {
+  const hit = PRICING.find((p) => model.startsWith(p.prefix))
+  if (hit) return hit
+  if (warnedUnknownModel !== model) {
+    warnedUnknownModel = model
+    logEvent({
+      level: 'warn',
+      kind: 'analysis',
+      message: `no pricing known for "${model}"`,
+      detail: 'billing it at the highest known rate so the budget cannot under-count',
+    })
+  }
+  return PRICING[0]!
+}
+
+export function recordCost(usage: Anthropic.Usage, policy: Policy, model: string): void {
   const searches = (usage as { server_tool_use?: { web_search_requests?: number } }).server_tool_use
     ?.web_search_requests
+  const price = priceFor(model)
   const cost =
-    (usage.input_tokens / 1e6) * PRICE_IN +
-    (usage.output_tokens / 1e6) * PRICE_OUT +
+    (usage.input_tokens / 1e6) * price.in +
+    (usage.output_tokens / 1e6) * price.out +
     (searches ?? 0) * PRICE_SEARCH
   const month = new Date().toISOString().slice(0, 7)
   const db = getDb()

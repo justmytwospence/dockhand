@@ -141,14 +141,14 @@ test('canAutoMerge: confidence threshold is inclusive', () => {
   assert.equal(merge({ confidence: 'medium', minConfidence: 'high' }).merge, false)
 })
 
-test('shouldOpenPr: wud-coexist covers exactly what WUD auto never touches', () => {
+test('shouldOpenPr: coexist covers exactly what another updater leaves alone', () => {
   const s = (over: Partial<Parameters<typeof shouldOpenPr>[0]>) =>
-    shouldOpenPr({ scope: 'wud-coexist', tier: 'auto', magnitude: 'patch', rolling: false, ...over })
+    shouldOpenPr({ scope: 'coexist', tier: 'auto', magnitude: 'patch', rolling: false, ...over })
 
-  // WUD owns auto-tier patches and minors during coexistence
+  // The other updater owns auto-tier patches and minors during coexistence
   assert.equal(s({}), false)
   assert.equal(s({ magnitude: 'minor' }), false)
-  // dockhand owns everything WUD's auto trigger skips
+  // dockhand owns everything such a tool would skip
   assert.equal(s({ magnitude: 'major' }), true)
   assert.equal(s({ magnitude: 'digest' }), true)
   assert.equal(s({ tier: 'gated' }), true)

@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 import type { ScannedService } from '../../compose/scan.ts'
-import { Layout, Empty, Table } from './layout.tsx'
+import { Layout, Empty, Table, type MissingSetting } from './layout.tsx'
 import { displayName } from '../../images/ref.ts'
 import { refLinks } from '../../links.ts'
 
@@ -26,8 +26,9 @@ export const ImagesPage: FC<{
   filter: string
   q: string
   statusMap: Map<string, StatusRow>
-}> = ({ services, filter, q, statusMap }) => (
-  <Layout title="Images" path="/images">
+  missing?: MissingSetting[]
+}> = ({ services, filter, q, statusMap, missing }) => (
+  <Layout title="Images" path="/images" missing={missing}>
     <h2>Image inventory</h2>
     <p class="sub">
       Read directly from the compose files in the working tree &mdash; never from running

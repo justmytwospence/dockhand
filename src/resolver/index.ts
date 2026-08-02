@@ -5,7 +5,7 @@ import { registryFetch } from '../registry/http.ts'
  * Image -> upstream source repository.
  *
  * This is the problem Renovate declines to solve, and the reason this tool exists.
- * Measured across this homelab's images: only about half carry an OCI annotation
+ * Measured across one real deployment's images: only about half carry an OCI annotation
  * pointing at the project that actually writes the release notes. Roughly a quarter
  * point at a *packaging* repo -- `traefik` -> `traefik-library-image`, every LinuxServer
  * image -> `linuxserver/docker-<app>` -- which is technically correct and useless. The
@@ -122,7 +122,7 @@ async function lsioProjectUrls(): Promise<Map<string, string>> {
 }
 
 /** Walk the manifest for annotations without pulling the image. They hide in four
- *  distinct places and every one is used by something in this homelab. */
+ *  distinct places and real images use every one of them. */
 async function fromAnnotations(
   registry: string,
   repository: string,

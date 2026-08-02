@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
-import { Layout, Banner, Empty, Table } from './layout.tsx'
+import { Layout, Banner, Empty, Table, type MissingSetting } from './layout.tsx'
 import { env } from '../../config.ts'
 import type { ScanInfo } from './dashboard.tsx'
 
@@ -11,8 +11,9 @@ export const SystemPage: FC<{
   version: string
   blackout: boolean
   scan: ScanInfo
-}> = ({ policy, policyError, budgets, version, blackout, scan }) => (
-  <Layout title="System" path="/system">
+  missing?: MissingSetting[]
+}> = ({ policy, policyError, budgets, version, blackout, scan, missing }) => (
+  <Layout title="System" path="/system" missing={missing}>
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
     <h2>Configuration</h2>
@@ -23,8 +24,8 @@ export const SystemPage: FC<{
           <td class="mono">{version}</td>
         </tr>
         <tr>
-          <th>homelab checkout</th>
-          <td class="mono">{env.homelabRepo}</td>
+          <th>repository checkout</th>
+          <td class="mono">{env.repoDir}</td>
         </tr>
         <tr>
           <th>target repo</th>
@@ -55,6 +56,12 @@ export const SystemPage: FC<{
           <th>claude</th>
           <td class="mono">
             {policy.claude.mode} &middot; {policy.claude.model}
+          </td>
+        </tr>
+        <tr>
+          <th>settings</th>
+          <td>
+            <a href="/settings">edit policy.yaml &rarr;</a>
           </td>
         </tr>
         <tr>

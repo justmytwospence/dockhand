@@ -99,7 +99,7 @@ function composeSnippet(stack: string, service: string): string | undefined {
   if (!row) return undefined
   let text: string
   try {
-    text = readFileSync(join(env.homelabRepo, row.compose_file), 'utf8')
+    text = readFileSync(join(env.repoDir, row.compose_file), 'utf8')
   } catch {
     return undefined
   }
