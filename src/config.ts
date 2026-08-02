@@ -141,6 +141,9 @@ const PolicySchema = z.object({
       block_on: z.array(z.enum(['block', 'caution'])).default(['block', 'caution']),
       min_confidence: z.enum(['low', 'medium', 'high']).default('medium'),
       model: z.string().default('claude-haiku-4-5-20251001'),
+      // Drafting config changes is rare, high-stakes work where being right matters far
+      // more than cost -- unlike the verdicts, which run on every pull request.
+      code_model: z.string().default('claude-opus-5'),
       monthly_budget_usd: z.number().positive().default(10),
     })
     .prefault({}),
@@ -161,6 +164,14 @@ const PolicySchema = z.object({
       // false parks the engine entirely: updates are still detected and shown, but
       // nothing is pushed and no pull request is created.
       enabled: z.boolean().default(true),
+    })
+    .prefault({}),
+  propose: z
+    .object({
+      // auto   -- draft changes whenever a verdict reports breakage or manual steps
+      // manual -- only when asked, per pull request
+      // off    -- never
+      mode: z.enum(['auto', 'manual', 'off']).default('auto'),
     })
     .prefault({}),
   deploy: z

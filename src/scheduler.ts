@@ -2,6 +2,7 @@ import { Cron } from 'croner'
 import { configured, env, inBlackout, loadPolicy } from './config.ts'
 import { logEvent } from './db.ts'
 import { runAnalysisPass } from './analyze/run.ts'
+import { runProposePass } from './propose/run.ts'
 import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
 import { runPrPass } from './gitops/pr.ts'
 import { runScan } from './scan.ts'
@@ -51,6 +52,9 @@ function startPrLoop(): void {
         // Analysis runs after PR creation, not before: a pull request must appear
         // whether or not the model is reachable.
         await runAnalysisPass()
+        // After analysis, because a proposal is only drafted once a verdict says the
+        // update needs more than its tag.
+        await runProposePass()
         if (result.paused) {
           logEvent({
             level: 'info',

@@ -816,3 +816,30 @@ select:focus,
     width: 100%;
   }
 }
+
+.pill.accent {
+  color: var(--accent);
+}
+
+.proposal {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+  margin-top: 0.6rem;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.proposal.failed {
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+}
+
+.oplist {
+  margin: 0.3rem 0 0.6rem;
+  padding-left: 1.15rem;
+  font-size: 0.86rem;
+}
+
+.oplist.notes {
+  color: var(--warn);
+}

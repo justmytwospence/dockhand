@@ -239,6 +239,34 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     ALTER TABLE prs ADD COLUMN scope_sha TEXT;
   `,
   },
+  {
+    id: '006-proposals',
+    sql: `
+    -- Config changes drafted by a model to accompany an image bump.
+    --
+    -- Recorded whatever the outcome: an applied set, a refusal, or a notes-only result
+    -- where nothing in the compose file needed to change. A refused proposal that left
+    -- no trace would be indistinguishable from "nothing to do".
+    --
+    -- prs.scope gains a third value alongside 'tag-only' and 'modified': 'proposed',
+    -- meaning dockhand added changes of its own. Like 'modified', it must never
+    -- auto-merge -- the whole point is that nothing has verified those changes.
+    CREATE TABLE proposals (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      pr_id      INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
+      update_id  INTEGER NOT NULL REFERENCES updates(id) ON DELETE CASCADE,
+      ops        TEXT NOT NULL,   -- JSON array of operations the model chose
+      notes      TEXT NOT NULL,   -- JSON array of manual steps
+      summary    TEXT,
+      sources    TEXT,
+      changed    TEXT,            -- JSON array of human-readable applied changes
+      model      TEXT,
+      error      TEXT,            -- refusal reason, when the ops could not be applied
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_proposals_pr ON proposals(pr_id);
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

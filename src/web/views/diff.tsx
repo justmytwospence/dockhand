@@ -4,13 +4,23 @@ import type { RefLinks } from '../../links.ts'
 
 const MARK: Record<string, string> = { ctx: ' ', del: '-', add: '+' }
 
+export interface ProposalSummary {
+  summary: string
+  notes: string[]
+  changed: string[]
+  error: string | null
+  model: string
+}
+
 export const DiffView: FC<{
   result: DiffResult
   links?: RefLinks
   prUrl?: string | null
   prNumber?: number | null
   prScope?: string | null
-}> = ({ result, links, prUrl, prNumber, prScope }) => (
+  proposal?: ProposalSummary
+  canPropose?: boolean
+}> = ({ result, links, prUrl, prNumber, prScope, proposal, canPropose }) => (
   <>
     {'error' in result ? (
       <p class="diff-note">{result.error}</p>
@@ -31,6 +41,52 @@ export const DiffView: FC<{
         </div>
       ))
     )}
+
+    {proposal ? (
+      <div class={`proposal${proposal.error ? ' failed' : ''}`}>
+        <strong>
+          {proposal.error
+            ? 'Config changes drafted but not applied'
+            : proposal.changed.length > 0
+              ? 'Config changes drafted'
+              : 'No config change needed'}
+        </strong>
+        {proposal.error ? <p class="diff-note warn-text">{proposal.error}</p> : null}
+        <p class="diff-note">{proposal.summary}</p>
+        {proposal.changed.length > 0 && (
+          <ul class="oplist">
+            {proposal.changed.map((c) => (
+              <li>{c}</li>
+            ))}
+          </ul>
+        )}
+        {proposal.notes.length > 0 && (
+          <>
+            <strong>Manual steps</strong>
+            <ul class="oplist notes">
+              {proposal.notes.map((n) => (
+                <li>{n}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p class="diff-note">
+          Drafted by <code>{proposal.model}</code>. Nothing has verified these; read the
+          commit before merging.
+        </p>
+      </div>
+    ) : canPropose && prNumber ? (
+      <p class="diff-note">
+        <button
+          class="linkish"
+          hx-post={`/prs/${prNumber}/propose`}
+          hx-swap="outerHTML"
+          hx-disabled-elt="this"
+        >
+          Draft config changes for this update
+        </button>
+      </p>
+    ) : null}
 
     {prScope === 'modified' && prUrl ? (
       <p class="diff-note warn-text">

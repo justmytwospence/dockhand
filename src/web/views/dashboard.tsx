@@ -130,6 +130,7 @@ export const Dashboard: FC<{
 export const SCOPE_FILTERS = [
   ['all', 'All'],
   ['tag-only', 'Tag only'],
+  ['proposed', 'With config changes'],
   ['edited', 'Edited'],
 ] as const
 
@@ -163,7 +164,8 @@ export const PendingSections: FC<{
             </a>
           ))}
           <span class="sub filters-note">
-            &ldquo;Edited&rdquo; means someone pushed changes beyond the image tag.
+            &ldquo;+ config&rdquo; carries changes dockhand drafted; &ldquo;edited&rdquo; carries yours.
+            Neither can merge automatically.
           </span>
         </nav>
       )}
@@ -286,6 +288,13 @@ const Section: FC<{
                         title="someone pushed changes beyond the image tag; this always needs a human"
                       >
                         edited
+                      </span>
+                    ) : r.pr_scope === 'proposed' ? (
+                      <span
+                        class="pill accent scope"
+                        title="dockhand drafted config changes to accompany this bump — review both commits"
+                      >
+                        + config
                       </span>
                     ) : (
                       <span class="pill muted scope" title="only the image tag changes">

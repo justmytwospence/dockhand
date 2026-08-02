@@ -59,6 +59,23 @@ export const SETTINGS: SettingDef[] = [
     help: 'Pick from the list, or type an id to use one that is not listed.',
   },
   {
+    section: 'Config proposals',
+    path: 'propose.mode',
+    kind: 'enum',
+    options: ['auto', 'manual', 'off'],
+    defaultValue: 'auto',
+    label: 'Draft config changes',
+    help: 'Auto drafts them whenever a verdict reports breakage. A drafted PR always needs a human.',
+  },
+  {
+    section: 'Config proposals',
+    path: 'claude.code_model',
+    kind: 'model',
+    defaultValue: 'claude-opus-5',
+    label: 'Model',
+    help: 'Rare, high-stakes work — worth a stronger model than the changelog verdicts use.',
+  },
+  {
     section: 'Changelog analysis',
     path: 'claude.min_confidence',
     kind: 'enum',

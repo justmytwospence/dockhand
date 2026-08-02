@@ -81,6 +81,9 @@ const CONFIDENCE_RANK: Record<Confidence, number> = { low: 0, medium: 1, high: 2
 export interface AutoMergeInput {
   tier: EffectiveTier
   magnitude: Magnitude
+  /** `tag-only` | `proposed` | `modified`. Anything but tag-only contains changes no
+   *  policy or verdict ever evaluated, so it always needs a person. */
+  prScope?: 'tag-only' | 'proposed' | 'modified'
   verdict: Verdict
   confidence: Confidence | null
   /** `dockhand.claude: required` -- flips this service to fail-closed. */
@@ -103,6 +106,15 @@ export type AutoMergeDecision =
  */
 export function canAutoMerge(i: AutoMergeInput): AutoMergeDecision {
   if (i.tier !== 'auto') return { merge: false, reason: `tier is ${i.tier}` }
+  if (i.prScope && i.prScope !== 'tag-only') {
+    return {
+      merge: false,
+      reason:
+        i.prScope === 'proposed'
+          ? 'the pull request carries drafted config changes'
+          : 'the pull request has been edited',
+    }
+  }
   if (i.magnitude === 'major') return { merge: false, reason: 'majors always need a human' }
   if (i.magnitude === 'digest') return { merge: false, reason: 'digest bumps always need a human' }
 

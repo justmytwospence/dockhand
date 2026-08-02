@@ -175,3 +175,22 @@ test('shouldOpenPr: full scope takes over the auto tier too', () => {
     false,
   )
 })
+
+test('canAutoMerge refuses any pull request carrying unverified changes', () => {
+  // The whole point of a drafted or hand-edited PR is that something in it has not been
+  // checked by policy or by a changelog verdict. Neither may ever merge unattended.
+  assert.equal(merge({ prScope: 'tag-only' }).merge, true)
+
+  const proposed = merge({ prScope: 'proposed' })
+  assert.equal(proposed.merge, false)
+  assert.match(proposed.merge === false ? proposed.reason : '', /drafted config changes/)
+
+  const edited = merge({ prScope: 'modified' })
+  assert.equal(edited.merge, false)
+  assert.match(edited.merge === false ? edited.reason : '', /has been edited/)
+
+  // A confident approval does not rescue either of them.
+  assert.equal(merge({ prScope: 'proposed', verdict: 'approve', confidence: 'high' }).merge, false)
+  // Absent scope information behaves as before, so existing callers are unaffected.
+  assert.equal(merge({}).merge, true)
+})

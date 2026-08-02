@@ -10,6 +10,7 @@ import { parseImageRef } from '../images/ref.ts'
 import { refLinks } from '../links.ts'
 import { isScanning, scanOne } from '../scan.ts'
 import { runScanNow } from '../scheduler.ts'
+import { runProposePass } from '../propose/run.ts'
 import {
   Dashboard,
   PendingSections,
@@ -112,6 +113,17 @@ export function createApp(): Hono {
       )
       .get(id) as { image: string; to_tag: string; source_url: string | null } | undefined
 
+    const proposal = pr
+      ? (db
+          .prepare(
+            `SELECT summary, notes, changed, error, model FROM proposals
+             WHERE pr_id = (SELECT id FROM prs WHERE number = ?) ORDER BY id DESC LIMIT 1`,
+          )
+          .get(pr.number) as
+          | { summary: string; notes: string; changed: string; error: string | null; model: string }
+          | undefined)
+      : undefined
+
     return c.html(
       DiffView({
         result,
@@ -119,6 +131,16 @@ export function createApp(): Hono {
         prNumber: pr?.number ?? null,
         prUrl: pr ? `https://github.com/${env.githubRepo}/pull/${pr.number}` : null,
         prScope: pr?.scope ?? null,
+        proposal: proposal
+          ? {
+              summary: proposal.summary,
+              notes: JSON.parse(proposal.notes) as string[],
+              changed: JSON.parse(proposal.changed ?? '[]') as string[],
+              error: proposal.error,
+              model: proposal.model,
+            }
+          : undefined,
+        canPropose: !!pr && pr.scope === 'tag-only',
       }) as string,
     )
   })
@@ -173,6 +195,17 @@ export function createApp(): Hono {
     return c.html(
       '<tr><td colspan="6" class="sub">queued &mdash; a PR opens on the next cycle</td></tr>',
     )
+  })
+
+  /** Draft config changes for one pull request on demand. */
+  app.post('/prs/:number/propose', async (c) => {
+    const number = Number(c.req.param('number'))
+    const r = await runProposePass(number)
+    if (r.drafted > 0) {
+      return c.html('<span class="sub">drafted — reload to see the changes</span>')
+    }
+    if (r.failed > 0) return c.html('<span class="sub">could not draft; see the activity log</span>')
+    return c.html('<span class="sub">nothing to draft for this pull request</span>')
   })
 
   app.get('/images', (c) => {
@@ -309,7 +342,10 @@ function filterServices(
  */
 function filterByScope(rows: PendingRow[], filter: string): PendingRow[] {
   if (filter === 'edited') return rows.filter((r) => r.pr_scope === 'modified')
-  if (filter === 'tag-only') return rows.filter((r) => r.pr_scope !== 'modified')
+  if (filter === 'proposed') return rows.filter((r) => r.pr_scope === 'proposed')
+  if (filter === 'tag-only') {
+    return rows.filter((r) => r.pr_scope !== 'modified' && r.pr_scope !== 'proposed')
+  }
   return rows
 }
 
