@@ -299,6 +299,14 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     );
   `,
   },
+  {
+    id: '008-proposal-hunks',
+    sql: `
+    -- The proposal's own diff, captured when it is applied rather than reconstructed
+    -- from GitHub later: at apply time both texts are exact and in hand.
+    ALTER TABLE proposals ADD COLUMN hunks TEXT;
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

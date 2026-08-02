@@ -71,7 +71,7 @@ export async function pollPrs(): Promise<PollResult> {
     // Re-classify whenever the head has moved since the last classification -- in
     // either direction, so an edit that is later reverted stops being reported as one.
     if (data.state === 'open' && data.head.sha !== pr.scope_sha) {
-      await classifyScope(pr.id, pr.number, pr.scope, data.head.sha)
+      await classifyScope(pr.id, pr.number, pr.scope, data.head.sha, !owned)
     }
 
     if (data.state === 'open') continue
@@ -120,12 +120,19 @@ async function classifyScope(
   number: number,
   was: string,
   headSha: string,
+  dockhandOwns: boolean,
 ): Promise<void> {
   const [owner, repo] = env.githubRepo.split('/') as [string, string]
-  let scope: 'tag-only' | 'modified'
+  let scope: 'tag-only' | 'modified' | 'proposed'
   try {
     const res = await gh().rest.pulls.listFiles({ owner, repo, pull_number: number, per_page: 100 })
     scope = classifyPatch(res.data, res.data.length >= 100)
+    // dockhand's own drafted config changes are not a human edit. The patch test cannot
+    // tell them apart -- both are "more than an image line" -- so ownership decides:
+    // the head is still exactly what dockhand pushed, and a proposal was recorded
+    // against it. Without this the next poll relabels every proposal as `modified` and
+    // the distinction disappears within one cycle.
+    if (dockhandOwns && scope === 'modified' && hasProposal(prId)) scope = 'proposed'
   } catch {
     // Unknown is not the same as clean; leave whatever was there rather than guessing,
     // and do not record the sha, so the next poll retries.
@@ -140,9 +147,18 @@ async function classifyScope(
     message:
       scope === 'modified'
         ? `#${number} now contains changes beyond the image tag`
-        : `#${number} is back to an image-tag change only`,
-    detail: scope === 'modified' ? 'it will always need a human to merge' : undefined,
+        : scope === 'proposed'
+          ? `#${number} carries dockhand's drafted config changes`
+          : `#${number} is back to an image-tag change only`,
+    detail: scope === 'tag-only' ? undefined : 'it will always need a human to merge',
   })
+}
+
+/** Did dockhand successfully draft config changes onto this pull request? */
+function hasProposal(prId: number): boolean {
+  return !!getDb()
+    .prepare(`SELECT 1 FROM proposals WHERE pr_id = ? AND error IS NULL LIMIT 1`)
+    .get(prId)
 }
 
 async function onMerged(prId: number, number: number): Promise<void> {

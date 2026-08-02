@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { configured, env, loadPolicy, inBlackout } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { scanRepo, type ScannedService } from '../compose/scan.ts'
-import { buildUpdateDiff } from '../diff.ts'
+import { buildUpdateDiff, type DiffHunk } from '../diff.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { refLinks } from '../links.ts'
 import { isScanning, scanOne } from '../scan.ts'
@@ -28,7 +28,7 @@ import { listModels } from '../analyze/models.ts'
 import { rescheduleScan } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
-import { SystemPage } from './views/system.tsx'
+import { SystemPage, type SpendRow } from './views/system.tsx'
 
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
@@ -117,11 +117,18 @@ export function createApp(): Hono {
     const proposal = pr
       ? (db
           .prepare(
-            `SELECT summary, notes, changed, error, model FROM proposals
+            `SELECT summary, notes, changed, error, model, hunks FROM proposals
              WHERE pr_id = (SELECT id FROM prs WHERE number = ?) ORDER BY id DESC LIMIT 1`,
           )
           .get(pr.number) as
-          | { summary: string; notes: string; changed: string; error: string | null; model: string }
+          | {
+              summary: string
+              notes: string
+              changed: string
+              error: string | null
+              model: string
+              hunks: string | null
+            }
           | undefined)
       : undefined
 
@@ -139,6 +146,7 @@ export function createApp(): Hono {
               changed: JSON.parse(proposal.changed ?? '[]') as string[],
               error: proposal.error,
               model: proposal.model,
+              hunks: JSON.parse(proposal.hunks ?? '[]') as DiffHunk[],
             }
           : undefined,
         canPropose: !!pr && pr.scope === 'tag-only',
@@ -324,11 +332,24 @@ export function createApp(): Hono {
   app.get('/system', (c) => {
     const { policy, error } = loadPolicy()
     const budgets = getDb().prepare(`SELECT * FROM budgets`).all() as Record<string, unknown>[]
+    // Itemised from the per-call ledger: a single total says how much, never why.
+    const spend = getDb()
+      .prepare(
+        `SELECT model, purpose, COUNT(*) AS calls, SUM(cost_usd) AS cost,
+                SUM(input_tokens + cache_write_tokens + cache_read_tokens) AS tokens_in,
+                SUM(output_tokens) AS tokens_out,
+                SUM(cache_read_tokens) AS cached
+         FROM llm_calls
+         WHERE created_at >= ?
+         GROUP BY model, purpose ORDER BY cost DESC`,
+      )
+      .all(new Date().toISOString().slice(0, 7) + '-01') as SpendRow[]
     return c.html(
       SystemPage({ missing: missing(),
         policy,
         policyError: error,
         budgets,
+        spend,
         version: readPackageVersion(),
         blackout: inBlackout(policy),
         scan: scanInfo(),

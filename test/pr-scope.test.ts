@@ -76,3 +76,34 @@ test('indentation variations on the image line still count as image lines', () =
 +  image: redis:8`
   assert.equal(classifyPatch([f('x/docker-compose.yaml', patch)], false), 'tag-only')
 })
+
+test('a drafted proposal is not a human edit', () => {
+  // Both a proposal and a hand-edit look identical to the patch test -- each is "more
+  // than an image line". Only ownership separates them, which is why classifyPatch
+  // alone cannot decide and poll.ts consults the proposals table.
+  const proposalPatch = [
+    {
+      filename: 'arcane/docker-compose.yaml',
+      patch: [
+        '@@ -48,7 +48,7 @@',
+        '-    image: ghcr.io/getarcaneapp/arcane:v1.18.1',
+        '+    image: ghcr.io/getarcaneapp/manager:v2.6.0',
+        '+      TRUSTED_PROXIES: 10.0.74.0/24',
+      ].join('\n'),
+    },
+  ]
+  // On its own the patch reads as modified...
+  assert.equal(classifyPatch(proposalPatch, false), 'modified')
+  // ...and that is exactly the state poll.ts must override when dockhand still owns the
+  // branch, or the `proposed` badge is destroyed one poll after it is set.
+})
+
+test('a tag-only bump stays tag-only however it is spaced', () => {
+  assert.equal(
+    classifyPatch(
+      [{ filename: 'x/docker-compose.yaml', patch: '@@\n-    image: a:1\n+    image: a:2' }],
+      false,
+    ),
+    'tag-only',
+  )
+})

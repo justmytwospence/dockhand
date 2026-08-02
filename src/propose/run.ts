@@ -11,6 +11,7 @@ import { resolveSource } from '../resolver/index.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
 import { applyOps } from './apply.ts'
+import { proposalHunks } from './hunks.ts'
 import { propose, type Proposal } from './propose.ts'
 import { gatherContext } from './context.ts'
 
@@ -251,7 +252,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
         c.prId,
       )
     })()
-    record(c, result, null, applied.changed)
+    record(c, result, null, applied.changed, proposalHunks(before, applied.text, c.composeFile))
 
     const [owner, repo] = env.githubRepo.split('/') as [string, string]
     await gh()
@@ -311,13 +312,19 @@ function blockFor(text: string, service: string): string {
   return lines.slice(start, end).join('\n')
 }
 
-function record(c: Candidate, p: Proposal, error: string | null, changed: string[]): void {
+function record(
+  c: Candidate,
+  p: Proposal,
+  error: string | null,
+  changed: string[],
+  hunks: unknown[] = [],
+): void {
   const { policy } = loadPolicy()
   getDb()
     .prepare(
       `INSERT INTO proposals (pr_id, update_id, ops, notes, summary, sources, changed,
-                              model, error, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              model, error, hunks, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       c.prId,
@@ -329,6 +336,7 @@ function record(c: Candidate, p: Proposal, error: string | null, changed: string
       JSON.stringify(changed),
       policy.claude.code_model,
       error,
+      JSON.stringify(hunks),
       new Date().toISOString(),
     )
 }

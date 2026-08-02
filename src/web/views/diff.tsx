@@ -1,5 +1,5 @@
 import type { FC } from 'hono/jsx'
-import type { DiffResult } from '../../diff.ts'
+import type { DiffResult, DiffHunk } from '../../diff.ts'
 import type { RefLinks } from '../../links.ts'
 
 const MARK: Record<string, string> = { ctx: ' ', del: '-', add: '+' }
@@ -10,6 +10,8 @@ export interface ProposalSummary {
   changed: string[]
   error: string | null
   model: string
+  /** The proposal's own diff, captured when it was applied. */
+  hunks: DiffHunk[]
 }
 
 export const DiffView: FC<{
@@ -60,6 +62,22 @@ export const DiffView: FC<{
             ))}
           </ul>
         )}
+        {/* The change itself, not just a description of it. */}
+        {proposal.hunks.map((h) => (
+          <div class="diff">
+            <div class="diff-head">
+              <span class="diff-file">{h.file}</span>
+              <span class="diff-hunk">{h.header}</span>
+            </div>
+            {h.lines.map((l) => (
+              <div class={`dl ${l.kind}`}>
+                <span class="ln">{l.no ?? ''}</span>
+                <span class="mark">{MARK[l.kind]}</span>
+                <span class="txt">{l.text}</span>
+              </div>
+            ))}
+          </div>
+        ))}
         {proposal.notes.length > 0 && (
           <>
             <strong>Manual steps</strong>
