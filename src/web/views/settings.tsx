@@ -1,14 +1,30 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
-import { SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
+import { SECTIONS, SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
 import { Layout, Banner, type MissingSetting } from './layout.tsx'
 import { PROMPTS, type PromptName } from '../../prompts/index.ts'
+
+/**
+ * The settings page.
+ *
+ * Two things it has to do that a list of form fields does not. First, order: the
+ * sections follow the path an update actually takes, so the page reads as the pipeline
+ * rather than as whatever order the fields were declared in. Second, weight: a knob that
+ * changes *what dockhand may do* is not the same kind of thing as one that changes how
+ * many pages a model may read, and showing them at the same size is how twenty-six
+ * settings become a wall. The second kind folds away.
+ *
+ * Section ids are slugs of their names so /about can link straight at one.
+ */
 
 export interface PromptState {
   name: PromptName
   body: string
   customised: boolean
 }
+
+export const slug = (s: string): string =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 export const SettingsPage: FC<{
   policy: Policy
@@ -20,10 +36,17 @@ export const SettingsPage: FC<{
   <Layout title="Settings" path="/settings" missing={missing}>
     <h2>Settings</h2>
     <p class="sub">
-      These are the contents of <code>dockhand/config/policy.yaml</code>. Saving edits that
-      file in place and commits it, so every change is reviewable in{' '}
-      <code>git log</code>. <a href="/settings/raw">View the file &rarr;</a>
+      These are the contents of <code>policy.yaml</code>. Saving edits that file in place
+      and commits it, so every change is reviewable in <code>git log</code>.{' '}
+      <a href="/settings/raw">View the file &rarr;</a>
     </p>
+
+    <div class="rule compact">
+      Sections follow the path an update takes. The model that ties them together is on{' '}
+      <a href="/about">About</a> &mdash; in one line: a changelog review can withhold a
+      merge and can never cause one.
+    </div>
+
     <div id="settings-form">
       <SettingsForm policy={policy} models={models} result={result} />
     </div>
@@ -32,8 +55,8 @@ export const SettingsPage: FC<{
     <p class="sub">
       What the models are actually told. These are the instructions behind every verdict
       and every drafted change &mdash; edit them if the judgements you are getting are not
-      the judgements you want. Stored separately from{' '}
-      <code>policy.yaml</code>, so upgrades keep shipping new defaults you can return to.
+      the judgements you want. Stored separately from <code>policy.yaml</code>, so upgrades
+      keep shipping new defaults you can return to.
     </p>
     {prompts.map((p) => (
       <PromptEditorFragment state={p} />
@@ -81,77 +104,117 @@ export const SettingsForm: FC<{
   policy: Policy
   models: string[]
   result?: { ok: true; applied: string[]; commit: string | null } | { ok: false; errors: string[] }
-}> = ({ policy, models, result }) => {
-  const sections = [...new Set(SETTINGS.map((s) => s.section))]
-  return (
-    <form hx-post="/settings" hx-target="#settings-form" hx-swap="innerHTML">
-      {result && result.ok && result.applied.length > 0 && (
-        <Banner kind="info">
-          Saved {result.applied.join(', ')}
-          {result.commit ? ` — committed ${result.commit}` : ''}.
-        </Banner>
-      )}
-      {result && result.ok && result.applied.length === 0 && (
-        <Banner kind="info">Nothing changed.</Banner>
-      )}
-      {result && !result.ok && (
-        <Banner kind="error">
-          {result.errors.length === 1 ? (
-            result.errors[0]
-          ) : (
-            <ul class="errlist">
-              {result.errors.map((e) => (
-                <li>{e}</li>
-              ))}
-            </ul>
-          )}
-        </Banner>
-      )}
-
-      {sections.map((section) => (
-        <>
-          <h2>{section}</h2>
-          <div class="settings">
-            {SETTINGS.filter((s) => s.section === section).map((def) => (
-              <Field def={def} value={currentValue(policy, def.path)} models={models} />
+}> = ({ policy, models, result }) => (
+  <form hx-post="/settings" hx-target="#settings-form" hx-swap="innerHTML">
+    {result && result.ok && result.applied.length > 0 && (
+      <Banner kind="info">
+        Saved {result.applied.join(', ')}
+        {result.commit ? ` — committed ${result.commit}` : ''}.
+      </Banner>
+    )}
+    {result && result.ok && result.applied.length === 0 && (
+      <Banner kind="info">Nothing changed.</Banner>
+    )}
+    {result && !result.ok && (
+      <Banner kind="error">
+        {result.errors.length === 1 ? (
+          result.errors[0]
+        ) : (
+          <ul class="errlist">
+            {result.errors.map((e) => (
+              <li>{e}</li>
             ))}
-          </div>
-        </>
-      ))}
+          </ul>
+        )}
+      </Banner>
+    )}
 
-      <div class="scanbar">
-        <button type="submit" hx-disabled-elt="this">
-          Save changes
-        </button>
-        <span class="sub">Committed to the repository as one change.</span>
-      </div>
-    </form>
-  )
-}
+    {SECTIONS.map(([name, blurb]) => {
+      const all = SETTINGS.filter((s) => s.section === name)
+      const primary = all.filter((s) => !s.advanced)
+      const advanced = all.filter((s) => s.advanced)
+      return (
+        <section id={slug(name)}>
+          <h2>{name}</h2>
+          <p class="sub">{blurb}</p>
+          {primary.length > 0 && (
+            <div class="settings">
+              {primary.map((def) => (
+                <Field def={def} value={currentValue(policy, def.path)} models={models} />
+              ))}
+            </div>
+          )}
+          {advanced.length > 0 && (
+            // Tuning, not policy: correct out of the box, and shown only on request so
+            // the settings that decide what may happen are not lost among them.
+            <details class="advanced">
+              <summary>
+                Tuning <span class="count">{advanced.length}</span>
+              </summary>
+              <div class="settings">
+                {advanced.map((def) => (
+                  <Field def={def} value={currentValue(policy, def.path)} models={models} />
+                ))}
+              </div>
+            </details>
+          )}
+        </section>
+      )
+    })}
+
+    <div class="scanbar sticky-save">
+      <button type="submit" hx-disabled-elt="this">
+        Save changes
+      </button>
+      <span class="sub">Committed to the repository as one change.</span>
+    </div>
+  </form>
+)
 
 const Field: FC<{ def: SettingDef; value: string; models: string[] }> = ({
   def,
   value,
   models,
-}) => (
-  <div class={`setting${def.locked ? ' locked' : ''}`}>
-    <label for={def.path}>{def.label}</label>
-    <div class="control">
-      {def.locked ? (
-        <span class="mono locked-value">{value || '—'}</span>
-      ) : (
-        <Control def={def} value={value} models={models} />
-      )}
+}) => {
+  const changed = !def.locked && value !== def.defaultValue
+  return (
+    <div class={`setting${def.locked ? ' locked' : ''}`}>
+      <label for={def.path}>
+        {def.label}
+        {changed && (
+          <span class="pill accent changed" title={`default: ${def.defaultValue}`}>
+            changed
+          </span>
+        )}
+      </label>
+      <div class="control">
+        {def.locked ? (
+          <span class="mono locked-value">{value || '—'}</span>
+        ) : (
+          <Control def={def} value={value} models={models} />
+        )}
+      </div>
+      <p class="help">
+        {def.locked ? <em>{def.locked}. </em> : null}
+        {def.help}
+        {changed && <span class="sub"> (default: {def.defaultValue})</span>}
+        {/* The gloss belongs under the control, not inside every option label: an
+            option list is for choosing, and a sentence per choice does not fit in one. */}
+        {def.optionHelp && !def.locked && (
+          <span class="optlegend">
+            {(def.options ?? [])
+              .filter((o) => def.optionHelp?.[o])
+              .map((o) => (
+                <span class={value === o ? 'opt current' : 'opt'}>
+                  <code>{o}</code> {def.optionHelp![o]}
+                </span>
+              ))}
+          </span>
+        )}
+      </p>
     </div>
-    <p class="help">
-      {def.locked ? <em>{def.locked}. </em> : null}
-      {def.help}
-      {!def.locked && value !== def.defaultValue && (
-        <span class="sub"> (default: {def.defaultValue})</span>
-      )}
-    </p>
-  </div>
-)
+  )
+}
 
 const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
   def,

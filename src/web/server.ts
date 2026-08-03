@@ -24,6 +24,7 @@ import { DiffView } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
 import { SettingsPage, SettingsForm, RawPolicy , PromptEditorFragment } from './views/settings.tsx'
+import { AboutPage } from './views/about.tsx'
 import { applySettings, SETTINGS } from '../settings.ts'
 import { listModels } from '../analyze/models.ts'
 import { rescheduleScan } from '../scheduler.ts'
@@ -338,6 +339,12 @@ export function createApp(): Hono {
     if (result.ok && result.applied.includes('scan.cron')) rescheduleScan()
     const { policy } = loadPolicy()
     return c.html(SettingsForm({ policy, models: await listModels(), result }) as string)
+  })
+
+  /** The mental model. Reads the live policy so it describes this deployment. */
+  app.get('/about', (c) => {
+    const { policy } = loadPolicy()
+    return c.html(AboutPage({ missing: missing(), policy, repo: env.githubRepo }) as string)
   })
 
   app.get('/settings/raw', (c) => {

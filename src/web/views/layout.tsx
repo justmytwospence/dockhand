@@ -6,6 +6,7 @@ const NAV = [
   ['/activity', 'Activity'],
   ['/settings', 'Settings'],
   ['/system', 'System'],
+  ['/about', 'About'],
 ] as const
 
 export interface MissingSetting {

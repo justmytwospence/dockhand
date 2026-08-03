@@ -871,3 +871,187 @@ select:focus,
   color: var(--fg);
   resize: vertical;
 }
+
+/* ------------------------------------------------------------------ about */
+
+/* The one claim everything else hangs off. Loud enough to read before the prose,
+   quiet enough not to look like an error. */
+.rule {
+  border: 1px solid var(--accent);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.95rem;
+  margin: 1rem 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.rule.compact {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.8rem;
+}
+
+.rule strong {
+  color: var(--accent);
+}
+
+/* Numbered pipeline. The counter is drawn rather than list-style so it can sit in the
+   gutter at a fixed width and keep every step's text on one left edge. */
+ol.flow {
+  list-style: none;
+  counter-reset: step;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+ol.flow li {
+  counter-increment: step;
+  position: relative;
+  padding: 0 0 0.9rem 2.1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+ol.flow li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.05rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  place-items: center;
+}
+
+/* The connecting rule, drawn between one marker and the next rather than around them. */
+ol.flow li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 0.72rem;
+  top: 1.6rem;
+  bottom: 0.25rem;
+  border-left: 1px solid var(--line);
+}
+
+ol.flow b {
+  font-weight: 600;
+}
+
+/* Which knobs govern this step. Trailing, muted, never competing with the sentence. */
+.knob {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.knob code {
+  margin-right: 0.35rem;
+}
+
+ul.never {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+ul.never li {
+  margin-bottom: 0.35rem;
+}
+
+/* ------------------------------------------------------- settings, continued */
+
+/* Tuning rather than policy. Folded so the settings that decide what may happen are
+   not lost among the ones that decide how fast it happens. */
+details.advanced {
+  margin-top: 0.5rem;
+}
+
+details.advanced > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+}
+
+details.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.advanced > summary::before {
+  content: '▸';
+  font-size: 0.7rem;
+  transition: transform 0.12s ease;
+}
+
+details.advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.advanced > summary:hover {
+  color: var(--fg);
+}
+
+details.advanced .settings {
+  margin-top: 0.35rem;
+}
+
+/* A value differing from the shipped default is the thing worth spotting on this page. */
+.setting label .changed {
+  margin-left: 0.4rem;
+  font-size: 0.68rem;
+  vertical-align: 0.08em;
+}
+
+/* One line per option, so an enum explains itself without a manual. */
+.optlegend {
+  display: block;
+  margin-top: 0.3rem;
+}
+
+.optlegend .opt {
+  display: block;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+
+.optlegend .opt.current {
+  opacity: 1;
+  color: var(--fg);
+}
+
+.optlegend code {
+  min-width: 5.5rem;
+  display: inline-block;
+}
+
+/* Twenty-six settings is a long page; the save button should not be at the bottom of it. */
+.scanbar.sticky-save {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 0;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .optlegend code {
+    min-width: 0;
+    margin-right: 0.3rem;
+  }
+}
