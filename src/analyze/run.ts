@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env, loadPolicy } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
-import { notify } from '../notify.ts'
+import { routine } from '../notify/digest.ts'
 import { analyze, budgetExhausted, type Verdict } from './claude.ts'
 
 /**
@@ -233,13 +233,15 @@ async function applyToPrs(
     }
   }
 
+  // Routine, not an alert: a block means an update is *not* being applied, so nothing is
+  // broken and nothing is waiting on a fast reaction. It belongs in the summary of what
+  // dockhand decided, alongside what it opened and merged.
   if (v.recommendation === 'block' && prs.length > 0) {
-    await notify({
-      title: 'dockhand: breaking changes found',
-      body: `${row.image} ${row.from_tag} -> ${row.to_tag}\n\n${v.summary}`,
-      priority: 4,
-      tags: ['warning'],
-      click: `https://github.com/${env.githubRepo}/pull/${prs[0]!.number}`,
+    await routine({
+      category: 'held',
+      summary: `#${prs[0]!.number} held — breaking changes in ${row.to_tag}`,
+      detail: `${row.image} ${row.from_tag} -> ${row.to_tag}\n\n${v.summary}`,
+      url: `https://github.com/${env.githubRepo}/pull/${prs[0]!.number}`,
     })
   }
 }

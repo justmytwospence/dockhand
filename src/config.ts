@@ -215,6 +215,22 @@ const PolicySchema = z.object({
       max_per_run: z.number().int().min(1).max(50).default(3),
     })
     .prefault({}),
+  /**
+   * How routine outcomes reach you. Alerts -- a failed deploy, an unhealthy service, a
+   * stuck sync -- are NOT covered here and always send immediately, so enabling a digest
+   * can never cause a failure to go unnoticed.
+   */
+  notify: z
+    .object({
+      // digest    -- collect and send one message per batch
+      // immediate -- one push per event, the original behaviour
+      // off       -- routine outcomes are logged but never pushed
+      routine: z.enum(['digest', 'immediate', 'off']).default('digest'),
+      // When the digest goes out. Seconds-field cron, like scan.cron. Defaults to a few
+      // hours after the default scan so the night's work is already in it.
+      cron: z.string().default('0 0 8 * * *'),
+    })
+    .prefault({}),
   deploy: z
     .object({
       // auto   -- bring merged changes up on the host

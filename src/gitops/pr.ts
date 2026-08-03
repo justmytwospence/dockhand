@@ -4,7 +4,7 @@ import { getDb, logEvent } from '../db.ts'
 import { scanRepo } from '../compose/scan.ts'
 import { parseImageRef, formatImageRef } from '../images/ref.ts'
 import { branchFor, groupUpdates, makeLookups, type GroupMember, type UpdateGroup } from '../groups.ts'
-import { notify } from '../notify.ts'
+import { routine } from '../notify/digest.ts'
 import { foldGroupMagnitude, shouldOpenPr, type EffectiveTier } from '../policy.ts'
 import type { Magnitude } from '../versions/patterns.ts'
 import { bumpImage } from './editor.ts'
@@ -131,17 +131,6 @@ export async function runPrPass(): Promise<PrRunResult> {
     }
     out.skipped += Math.max(0, groups.length - room)
 
-    if (out.opened > 0) {
-      await notify({
-        title: `dockhand: ${out.opened} pull request(s) opened`,
-        body: groups
-          .slice(0, out.opened)
-          .map((g) => `${g.members[0]!.stack}: ${describe(g)}`)
-          .join('\n'),
-        tags: ['inbox_tray'],
-        click: `https://github.com/${env.githubRepo}/pulls`,
-      })
-    }
     return out
   })
 }
@@ -259,6 +248,22 @@ async function openPr(repoDir: string, group: UpdateGroup, policy: Policy): Prom
   })
 
   recordPr({ number, branch, sha, groupKey: group.key, memberIds: members.map((m) => m.id) })
+  // Recorded per pull request rather than as one "N opened" message at the end of the
+  // pass: a pass is an implementation detail of the poll loop, and batching is now the
+  // digest's job. Each item names what moved, so the digest can list them.
+  const one = members.length === 1 ? members[0]! : null
+  await routine({
+    category: 'opened',
+    stack,
+    service: one?.service,
+    // The digest prefixes every line with stack/service, so naming the service again
+    // here reads as "servarr/radarr: radarr 5.28 -> 5.29". A group has no single
+    // service to prefix with, so there the names belong in the summary.
+    summary: one
+      ? `${short(one.from_tag)} -> ${short(one.to_tag)} (#${number})`
+      : `${describe(group)} (#${number})`,
+    url: `https://github.com/${env.githubRepo}/pull/${number}`,
+  })
   logEvent({
     level: 'info',
     kind: 'pr',

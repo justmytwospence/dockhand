@@ -2,7 +2,7 @@ import { execa } from 'execa'
 import { join } from 'node:path'
 import { env, inBlackout, loadPolicy } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
-import { notify } from '../notify.ts'
+import { notify } from '../notify/index.ts'
 
 /**
  * Bringing a merged change up on the host.

@@ -1,6 +1,6 @@
 import { env, loadPolicy } from '../config.ts'
 import { logEvent } from '../db.ts'
-import { notifyOnce, clearNotifyState, notify } from '../notify.ts'
+import { notifyOnce, clearNotifyState, notify } from '../notify/index.ts'
 import { git, httpsUrl } from './repo.ts'
 
 /**

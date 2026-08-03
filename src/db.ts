@@ -367,6 +367,34 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     UPDATE model_tier_decisions SET static_tier = 'manual' WHERE static_tier = 'gated';
   `,
   },
+  {
+    id: '012-digest',
+    sql: `
+    -- Routine notifications, held until the digest goes out.
+    --
+    -- A separate table rather than a query over \`events\`: events are an audit trail and
+    -- record everything, including the dozens of scan lines nobody wants pushed at them.
+    -- Deciding at write time which facts are worth a notification is the whole feature,
+    -- and encoding that decision as a pattern match over log messages would be both
+    -- fragile and invisible.
+    --
+    -- \`sent_at\` rather than DELETE on flush: a digest that failed to send must not take
+    -- its contents with it, and having the last few digests still readable is worth one
+    -- column.
+    CREATE TABLE digest_items (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      at         TEXT NOT NULL,
+      category   TEXT NOT NULL,   -- opened | merged | deployed | held | drafted
+      stack      TEXT,
+      service    TEXT,
+      summary    TEXT NOT NULL,   -- one line, already human-readable
+      detail     TEXT,
+      url        TEXT,
+      sent_at    TEXT
+    );
+    CREATE INDEX idx_digest_pending ON digest_items(sent_at, id);
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

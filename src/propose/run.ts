@@ -6,7 +6,7 @@ import { botIdentity, env, loadPolicy } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { budgetExhausted } from '../analyze/claude.ts'
 import { scanRepo } from '../compose/scan.ts'
-import { notify } from '../notify.ts'
+import { routine } from '../notify/digest.ts'
 import { resolveSource } from '../resolver/index.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
@@ -348,11 +348,13 @@ async function draftFor(c: Candidate): Promise<boolean> {
       message: `#${c.number}: drafted ${applied.changed.length} config change(s)`,
       detail: applied.changed.join(', '),
     })
-    await notify({
-      title: `dockhand: config changes drafted for #${c.number}`,
-      body: `${c.stack}/${c.service}\n\n${applied.changed.join('\n')}\n\nReview both commits before merging.`,
-      tags: ['pencil'],
-      click: `https://github.com/${env.githubRepo}/pull/${c.number}/files`,
+    await routine({
+      category: 'drafted',
+      stack: c.stack,
+      service: c.service,
+      summary: `#${c.number} — ${applied.changed.length} config change(s) drafted`,
+      detail: `${c.stack}/${c.service}\n\n${applied.changed.join('\n')}\n\nReview both commits before merging.`,
+      url: `https://github.com/${env.githubRepo}/pull/${c.number}/files`,
     })
     return true
   })

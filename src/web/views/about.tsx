@@ -98,7 +98,58 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
           <code>dockhand.deploy</code>, <a href="/settings#deploying">Deploying</a>
         </span>
       </li>
+      <li>
+        <b>Told to you.</b> Routine outcomes are collected and sent as one digest per
+        batch. Anything that went <em>wrong</em> ignores that entirely and pushes at once.
+        <span class="knob">
+          <a href="/settings#telling-you-about-it">Telling you about it</a>
+        </span>
+      </li>
     </ol>
+
+    <h2>What reaches your phone</h2>
+    <p class="sub">
+      Two kinds of message, and which is which is not configurable &mdash; that is what
+      makes turning the digest on safe.
+    </p>
+    <Table>
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Examples</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nowrap">
+            <span class="pill err">alert</span>
+          </td>
+          <td>
+            A deploy failed. A service came up unhealthy. Sync is stuck on a conflict and
+            dockhand has stopped.
+          </td>
+          <td class="sub">immediately, always</td>
+        </tr>
+        <tr>
+          <td class="nowrap">
+            <span class="pill muted">routine</span>
+          </td>
+          <td>
+            A pull request opened, one merged, a deploy succeeded, config changes were
+            drafted, a verdict held something back.
+          </td>
+          <td class="sub">
+            batched into one digest, currently <strong>{policy.notify.routine}</strong>
+          </td>
+        </tr>
+      </tbody>
+    </Table>
+    <p class="sub">
+      An empty digest is never sent. Every routine item is on the{' '}
+      <a href="/activity">Activity</a> page whether or not it was pushed, and the exact
+      text of the next digest is on <a href="/settings">Settings</a>.
+    </p>
 
     <h2>The ladder</h2>
     <p class="sub">

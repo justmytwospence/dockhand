@@ -89,6 +89,10 @@ export const SECTIONS = [
     'When an update needs more than its tag, a model can write the rest. A pull request carrying drafted changes can never merge automatically.',
   ],
   ['Deploying', 'A change is done when it is running, not when it is merged.'],
+  [
+    'Telling you about it',
+    'Routine outcomes only — opened, merged, deployed, drafted, held. Failures and anything that leaves dockhand stuck always send immediately and are not configurable here, so a digest can never cause you to miss one.',
+  ],
   ['Keeping git in step', 'Publishing main, and staying out of the way while you work.'],
 ] as const satisfies readonly (readonly [string, string])[]
 
@@ -358,6 +362,30 @@ export const SETTINGS: SettingDef[] = [
     label: 'Health window (seconds)',
     help: 'How long a container must stay up and healthy before the deploy counts as good. Returns as soon as it is, so only a bad deploy costs the wait.',
     advanced: true,
+  },
+
+  // ------------------------------------------------------- Telling you about it
+  {
+    section: 'Telling you about it',
+    path: 'notify.routine',
+    kind: 'enum',
+    options: ['digest', 'immediate', 'off'],
+    optionHelp: {
+      digest: 'collect them and send one message per batch',
+      immediate: 'one push the moment each thing happens',
+      off: 'record them in the activity log and push nothing',
+    },
+    defaultValue: 'digest',
+    label: 'Routine outcomes',
+    help: 'A dozen separate pushes is a stream nobody reads; the same dozen in one message is a summary.',
+  },
+  {
+    section: 'Telling you about it',
+    path: 'notify.cron',
+    kind: 'cron',
+    defaultValue: '0 0 8 * * *',
+    label: 'Digest schedule',
+    help: 'Six fields, seconds first. Nothing is sent when nothing happened. Applies immediately, no restart needed.',
   },
 
   // -------------------------------------------------------- Keeping git in step

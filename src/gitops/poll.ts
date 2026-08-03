@@ -1,7 +1,8 @@
 import { Octokit } from 'octokit'
 import { env, loadPolicy } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
-import { notify } from '../notify.ts'
+import { notify } from '../notify/index.ts'
+import { routine } from '../notify/digest.ts'
 import { withGitLock } from './repo.ts'
 import { syncMain } from './sync.ts'
 import { deployForPr, type DeployTarget } from '../deploy/run.ts'
@@ -212,13 +213,14 @@ async function onMerged(prId: number, number: number): Promise<void> {
   })
 
   if (policy.deploy.mode !== 'auto') {
-    // Not deploying: the notification carries the exact command so it is one paste
-    // rather than a lookup.
-    await notify({
-      title: `dockhand: #${number} merged`,
-      body: `${stack}: ${services}\n\nDeploy with:\n${command}`,
-      tags: ['white_check_mark'],
-      click: `https://github.com/${env.githubRepo}/pull/${number}`,
+    // Not deploying: the item carries the exact command so it is one paste rather than a
+    // lookup, even when it arrives in a digest hours later.
+    await routine({
+      category: 'merged',
+      stack,
+      summary: `#${number} merged — deploy with: ${command}`,
+      detail: `${stack}: ${services}\n\nDeploy with:\n${command}`,
+      url: `https://github.com/${env.githubRepo}/pull/${number}`,
     })
     return
   }
@@ -235,14 +237,15 @@ async function onMerged(prId: number, number: number): Promise<void> {
   const outcome = await deployForPr(number, target);
 
   if (outcome.ok && outcome.healthy) {
-    await notify({
-      title: `dockhand: #${number} merged and deployed`,
-      body: `${stack}: ${outcome.detail}`,
-      tags: ['white_check_mark'],
-      click: `https://github.com/${env.githubRepo}/pull/${number}`,
+    await routine({
+      category: 'deployed',
+      stack,
+      summary: `#${number} merged and deployed — ${outcome.detail}`,
+      url: `https://github.com/${env.githubRepo}/pull/${number}`,
     })
   }
-  // Failures notify from deployForPr, which knows how they failed.
+  // Failures alert immediately from deployForPr, which knows how they failed. Nothing
+  // that went wrong ever waits for a digest.
 }
 
 /** The service's `dockhand.deploy` label, as recorded by the last scan. */

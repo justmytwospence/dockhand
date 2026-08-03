@@ -7,6 +7,7 @@ import { runAutoMerge } from './gitops/automerge.ts'
 import { pollIntervalMs, pollPrs } from './gitops/poll.ts'
 import { runPrPass } from './gitops/pr.ts'
 import { runScan } from './scan.ts'
+import { flush as flushDigest, prune as pruneDigest } from './notify/digest.ts'
 
 /**
  * Nightly scan scheduling.
@@ -19,6 +20,9 @@ import { runScan } from './scan.ts'
 let job: Cron | null = null
 let currentExpression = ''
 let deferTimer: NodeJS.Timeout | null = null
+
+let digestJob: Cron | null = null
+let digestExpression = ''
 
 export function startScheduler(): void {
   const setup = configured()
@@ -34,7 +38,47 @@ export function startScheduler(): void {
     return
   }
   schedule()
+  scheduleDigest()
   startPrLoop()
+}
+
+/**
+ * The digest clock, separate from the scan's.
+ *
+ * They are different questions -- "when should dockhand go and look" and "when do you
+ * want to hear about it" -- and tying them together would mean an operator who scans
+ * hourly gets hourly pushes. The default sits a few hours after the default scan so a
+ * night's work has landed before the summary goes out.
+ */
+function scheduleDigest(): void {
+  const { policy } = loadPolicy()
+  digestExpression = policy.notify.cron
+  digestJob?.stop()
+  digestJob = new Cron(digestExpression, { timezone: env.tz }, async () => {
+    const { policy: now } = loadPolicy()
+    // Pick up a schedule edit without a restart, the same way the scan does.
+    if (now.notify.cron !== digestExpression) {
+      scheduleDigest()
+      return
+    }
+    if (now.notify.routine !== 'digest') return
+    try {
+      await flushDigest('cron')
+      pruneDigest()
+    } catch (err) {
+      logEvent({
+        level: 'warn',
+        kind: 'system',
+        message: 'could not send the digest',
+        detail: (err as Error).message,
+      })
+    }
+  })
+}
+
+/** Rebuild the digest job, so a schedule edited in the UI applies immediately. */
+export function rescheduleDigest(): void {
+  scheduleDigest()
 }
 
 /**
