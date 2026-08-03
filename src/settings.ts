@@ -13,6 +13,21 @@ import { logEvent } from './db.ts'
  * Edits are line splices, never a re-serialisation: the file is written for humans and
  * carries a comment above almost every key explaining why it is set that way, all of
  * which a YAML emitter would discard.
+ *
+ * ## Why the splicer inserts as well as replaces
+ *
+ * It originally only replaced an existing line, and returned null -- "could not find X
+ * in policy.yaml" -- for anything else. That looked safe and was not: every field on
+ * the page is submitted on every save, so the first setting whose key had never been
+ * written to the file failed the whole save, including the twenty-five that were fine.
+ * A policy.yaml written before `merge`, `model_tier`, `claude.web` and
+ * `claude.code_model` existed therefore made the entire Settings page inert, silently,
+ * with no way to fix it from the page that was broken.
+ *
+ * The rule that fixes it is the same one that keeps the file legible: a key the schema
+ * knows about is always addressable. Missing keys are inserted at the end of their
+ * section, missing sections are appended, and everything already in the file keeps its
+ * comments and its position.
  */
 
 export type SettingKind =
@@ -26,123 +41,144 @@ export type SettingKind =
   | 'model'
 
 export interface SettingDef {
-  /** Dotted path, e.g. `claude.model`. Top-level keys have no dot. */
+  /** Dotted path, e.g. `claude.model` or `claude.web.searches`. Any depth. */
   path: string
   kind: SettingKind
   label: string
   help: string
   options?: string[]
+  /** Plain-language gloss per option, shown as a legend under an enum. */
+  optionHelp?: Record<string, string>
   min?: number
   /** Shown as "default: X" so a changed value is obvious. */
   defaultValue: string
   /** Present = read-only, with the reason shown. */
   locked?: string
-  section: string
+  section: SectionName
+  /**
+   * Tuning rather than policy: correct out of the box, folded away by default. The
+   * distinction is whether getting it wrong changes *what dockhand may do* (never
+   * advanced) or only how fast or how thoroughly it does it (advanced).
+   */
+  advanced?: boolean
+}
+
+/**
+ * The sections, in the order the pipeline actually runs.
+ *
+ * Order used to fall out of whatever position a field happened to occupy in the array
+ * below, which produced nine headings including both "Deploy" and "Deploys" as separate
+ * sections holding the same setting twice. Naming the sequence here means the page reads
+ * as the path an update takes -- found, judged, proposed, merged, deployed -- and a new
+ * setting has one obvious home.
+ */
+export const SECTIONS = [
+  ['Finding updates', 'When dockhand asks the registries what exists.'],
+  [
+    'What may happen without you',
+    'The ladder, applied by how large the version jump is. A per-service `dockhand.policy` label overrides it for that service. Majors are never on it.',
+  ],
+  [
+    'Reading the changelog',
+    'A model finds and reads the release notes, then judges the update. Its verdict can only ever withhold a merge — never cause one.',
+  ],
+  ['Pull requests', 'Every change goes through one. It is the review surface.'],
+  ['Merging', 'The only place dockhand changes the repository with nobody watching.'],
+  [
+    'Drafting config changes',
+    'When an update needs more than its tag, a model can write the rest. A pull request carrying drafted changes can never merge automatically.',
+  ],
+  ['Deploying', 'A change is done when it is running, not when it is merged.'],
+  ['Keeping git in step', 'Publishing main, and staying out of the way while you work.'],
+] as const satisfies readonly (readonly [string, string])[]
+
+export type SectionName = (typeof SECTIONS)[number][0]
+
+/** Plain-language gloss for the one enum that carries the whole model. */
+const TIER_HELP: Record<string, string> = {
+  auto: 'dockhand opens a pull request and merges it, unless the changelog review says otherwise',
+  manual: 'dockhand opens a pull request; you merge it',
+  'on-request': 'nothing is opened — the update is listed on the dashboard until you ask for a pull request',
+  skip: 'not tracked at all',
 }
 
 export const SETTINGS: SettingDef[] = [
+  // ------------------------------------------------------------ Finding updates
   {
-    section: 'Changelog analysis',
+    section: 'Finding updates',
+    path: 'scan.cron',
+    kind: 'cron',
+    defaultValue: '0 0 3 * * *',
+    label: 'Schedule',
+    help: 'Six fields, seconds first. Applies immediately, no restart needed.',
+  },
+
+  // ------------------------------------------------- What may happen without you
+  {
+    section: 'What may happen without you',
+    path: 'defaults.patch',
+    kind: 'enum',
+    options: ['auto', 'manual', 'on-request', 'skip'],
+    optionHelp: TIER_HELP,
+    defaultValue: 'auto',
+    label: 'Patch updates',
+    help: 'x.y.Z — the smallest jump upstream offers.',
+  },
+  {
+    section: 'What may happen without you',
+    path: 'defaults.minor',
+    kind: 'enum',
+    options: ['auto', 'manual', 'on-request', 'skip'],
+    optionHelp: TIER_HELP,
+    defaultValue: 'auto',
+    label: 'Minor updates',
+    help: 'x.Y.z — new features, no promised breakage.',
+  },
+  {
+    section: 'What may happen without you',
+    path: 'defaults.major',
+    kind: 'enum',
+    options: ['manual'],
+    defaultValue: 'manual',
+    label: 'Major updates',
+    help: 'X.y.z. Always a pull request you merge yourself.',
+    locked: 'not configurable — a major always needs a human',
+  },
+  {
+    section: 'What may happen without you',
+    path: 'defaults.digest',
+    kind: 'enum',
+    options: ['auto', 'manual', 'on-request', 'skip'],
+    optionHelp: TIER_HELP,
+    defaultValue: 'manual',
+    label: 'Digest bumps',
+    help: 'A pinned sha256 moved: the same tag, rebuilt. There is no changelog to read for one.',
+  },
+
+  // -------------------------------------------------------- Reading the changelog
+  {
+    section: 'Reading the changelog',
     path: 'claude.mode',
     kind: 'enum',
     options: ['advisory', 'off'],
+    optionHelp: {
+      advisory: 'read every update and let the verdict hold back an automatic merge',
+      off: 'do not read anything; the ladder above decides on its own',
+    },
     defaultValue: 'advisory',
     label: 'Mode',
     help: 'Advisory lets a verdict hold back an automatic merge. It can never cause one.',
   },
   {
-    section: 'Changelog analysis',
+    section: 'Reading the changelog',
     path: 'claude.model',
     kind: 'model',
     defaultValue: 'claude-haiku-4-5-20251001',
     label: 'Model',
-    help: 'Pick from the list, or type an id to use one that is not listed.',
+    help: 'Runs on every update, so it is the one worth keeping cheap. Pick from the list, or type an id that is not on it.',
   },
   {
-    section: 'Merging',
-    path: 'model_tier.mode',
-    kind: 'enum',
-    options: ['off', 'shadow', 'enforce'],
-    defaultValue: 'shadow',
-    label: 'Model-decided updates',
-    help: 'For services labelled dockhand.policy: model. Shadow records the decisions without acting on them.',
-  },
-  {
-    section: 'Merging',
-    path: 'merge.auto',
-    kind: 'bool',
-    defaultValue: 'false',
-    label: 'Merge without asking',
-    help: 'Only tag-only pull requests on the auto tier, patch/minor, with no verdict withholding them.',
-  },
-  {
-    section: 'Merging',
-    path: 'merge.max_per_run',
-    kind: 'number',
-    defaultValue: '3',
-    label: 'Most merges per run',
-    help: 'A ceiling so a misconfiguration merges a couple of things rather than the backlog.',
-  },
-  {
-    section: 'Deploys',
-    path: 'deploy.mode',
-    kind: 'enum',
-    options: ['auto', 'manual', 'off'],
-    defaultValue: 'manual',
-    label: 'After a merge',
-    help: 'Auto brings the change up on the host. Manual syncs and sends you the command.',
-  },
-  {
-    section: 'Deploys',
-    path: 'deploy.health_window_s',
-    kind: 'number',
-    defaultValue: '120',
-    label: 'Health window (seconds)',
-    help: 'How long to wait for containers to come up healthy before calling it a failure.',
-  },
-  {
-    section: 'Config proposals',
-    path: 'propose.mode',
-    kind: 'enum',
-    options: ['auto', 'manual', 'off'],
-    defaultValue: 'auto',
-    label: 'Draft config changes',
-    help: 'Auto drafts them whenever a verdict reports breakage. A drafted PR always needs a human.',
-  },
-  {
-    section: 'Changelog analysis',
-    path: 'claude.web.searches',
-    kind: 'number',
-    defaultValue: '4',
-    label: 'Searches per call',
-    help: 'How many web searches a single review or proposal may run.',
-  },
-  {
-    section: 'Changelog analysis',
-    path: 'claude.web.fetches',
-    kind: 'number',
-    defaultValue: '5',
-    label: 'Pages read per call',
-    help: 'Together with the size cap below, this sets the ceiling on what a call can cost.',
-  },
-  {
-    section: 'Changelog analysis',
-    path: 'claude.web.content_tokens',
-    kind: 'number',
-    defaultValue: '12000',
-    label: 'Max tokens per page',
-    help: 'Reading is the dominant cost: worst case per call is pages x this.',
-  },
-  {
-    section: 'Config proposals',
-    path: 'claude.code_model',
-    kind: 'model',
-    defaultValue: 'claude-opus-5',
-    label: 'Model',
-    help: 'Rare, high-stakes work — worth a stronger model than the changelog verdicts use.',
-  },
-  {
-    section: 'Changelog analysis',
+    section: 'Reading the changelog',
     path: 'claude.min_confidence',
     kind: 'enum',
     options: ['low', 'medium', 'high'],
@@ -151,7 +187,16 @@ export const SETTINGS: SettingDef[] = [
     help: 'An approval below this is treated as a caution and waits for you.',
   },
   {
-    section: 'Changelog analysis',
+    section: 'Reading the changelog',
+    path: 'claude.block_on',
+    kind: 'string',
+    defaultValue: 'block, caution',
+    label: 'Hold on',
+    help: 'Which verdicts hold back an automatic merge.',
+    locked: 'the damper is load-bearing; edit policy.yaml directly to change it',
+  },
+  {
+    section: 'Reading the changelog',
     path: 'claude.monthly_budget_usd',
     kind: 'number',
     min: 0,
@@ -160,15 +205,37 @@ export const SETTINGS: SettingDef[] = [
     help: 'Reaching it pauses analysis. Pull requests keep opening regardless.',
   },
   {
-    section: 'Changelog analysis',
-    path: 'claude.block_on',
-    kind: 'string',
-    defaultValue: 'block, caution',
-    label: 'Hold on',
-    help: 'Which verdicts hold back an automatic merge.',
-    locked: 'the damper is load-bearing; edit policy.yaml directly to change it',
+    section: 'Reading the changelog',
+    path: 'claude.web.searches',
+    kind: 'int',
+    min: 1,
+    defaultValue: '4',
+    label: 'Searches per call',
+    help: 'How many web searches a single review or draft may run.',
+    advanced: true,
+  },
+  {
+    section: 'Reading the changelog',
+    path: 'claude.web.fetches',
+    kind: 'int',
+    min: 1,
+    defaultValue: '5',
+    label: 'Pages read per call',
+    help: 'Together with the size cap below, this sets the ceiling on what a call can cost.',
+    advanced: true,
+  },
+  {
+    section: 'Reading the changelog',
+    path: 'claude.web.content_tokens',
+    kind: 'int',
+    min: 1000,
+    defaultValue: '12000',
+    label: 'Max tokens per page',
+    help: 'Reading is the dominant cost: worst case per call is pages x this.',
+    advanced: true,
   },
 
+  // ------------------------------------------------------------- Pull requests
   {
     section: 'Pull requests',
     path: 'prs.enabled',
@@ -179,21 +246,25 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     section: 'Pull requests',
+    path: 'prs.scope',
+    kind: 'enum',
+    options: ['coexist', 'full'],
+    optionHelp: {
+      coexist: 'take only what another updater leaves alone — majors, digest pins, and anything off the auto rung',
+      full: 'dockhand is the only updater; it handles everything',
+    },
+    defaultValue: 'coexist',
+    label: 'Coverage',
+    help: 'Coexist exists so two updaters can never write to the same file for the same reason.',
+  },
+  {
+    section: 'Pull requests',
     path: 'prs.max_open',
     kind: 'int',
     min: 1,
     defaultValue: '5',
     label: 'Maximum open at once',
-    help: 'New ones open as older ones are merged or closed.',
-  },
-  {
-    section: 'Pull requests',
-    path: 'prs.scope',
-    kind: 'enum',
-    options: ['coexist', 'full'],
-    defaultValue: 'coexist',
-    label: 'Coverage',
-    help: 'Coexist takes only what another updater leaves alone. Full takes over everything.',
+    help: 'New ones open as older ones are merged or closed. A backlog arriving all at once is a wall, not a queue.',
   },
   {
     section: 'Pull requests',
@@ -202,19 +273,104 @@ export const SETTINGS: SettingDef[] = [
     options: ['squash', 'merge', 'rebase'],
     defaultValue: 'squash',
     label: 'Merge method',
-    help: 'Must be one the GitHub repository actually allows, or merging fails.',
+    help: 'Must be one the GitHub repository actually allows, or merging fails with a 405.',
+    advanced: true,
   },
 
+  // ------------------------------------------------------------------ Merging
   {
-    section: 'Sync',
+    section: 'Merging',
+    path: 'merge.auto',
+    kind: 'bool',
+    defaultValue: 'false',
+    label: 'Merge without asking',
+    help: 'Only tag-only pull requests on the auto rung, patch or minor, with no verdict withholding them. Everything else still waits for you.',
+  },
+  {
+    section: 'Merging',
+    path: 'merge.max_per_run',
+    kind: 'int',
+    min: 1,
+    defaultValue: '3',
+    label: 'Most merges per run',
+    help: 'A ceiling so a misconfiguration merges a couple of things rather than the backlog.',
+  },
+  {
+    section: 'Merging',
+    path: 'model_tier.mode',
+    kind: 'enum',
+    options: ['off', 'shadow', 'enforce'],
+    optionHelp: {
+      off: 'ignore the label; those services fall back to a human',
+      shadow: 'record what it would have decided, act on none of it',
+      enforce: 'let a passing assessment move the update onto the auto rung',
+    },
+    defaultValue: 'shadow',
+    label: 'Model-decided updates',
+    help: 'Only for services labelled dockhand.policy: model — the one place a model can raise a rung rather than only lower it. The track record is on the System page.',
+  },
+
+  // ------------------------------------------------------- Drafting config changes
+  {
+    section: 'Drafting config changes',
+    path: 'propose.mode',
+    kind: 'enum',
+    options: ['auto', 'manual', 'off'],
+    optionHelp: {
+      auto: 'draft whenever a verdict reports breakage or manual steps',
+      manual: 'only when you press the button on a pull request',
+      off: 'never draft anything',
+    },
+    defaultValue: 'auto',
+    label: 'Draft config changes',
+    help: 'A drafted pull request always needs a human, whatever else is set.',
+  },
+  {
+    section: 'Drafting config changes',
+    path: 'claude.code_model',
+    kind: 'model',
+    defaultValue: 'claude-opus-5',
+    label: 'Model',
+    help: 'Rare, high-stakes work — worth a stronger model than the changelog verdicts use.',
+  },
+
+  // ---------------------------------------------------------------- Deploying
+  {
+    section: 'Deploying',
+    path: 'deploy.mode',
+    kind: 'enum',
+    options: ['auto', 'manual', 'off'],
+    optionHelp: {
+      auto: 'bring the change up on the host as soon as it merges',
+      manual: 'sync the checkout and send you the exact command',
+      off: 'do not even sync the checkout',
+    },
+    defaultValue: 'manual',
+    label: 'After a merge',
+    help: 'Deploys run a real docker compose up -d, which re-reads the whole file.',
+  },
+  {
+    section: 'Deploying',
+    path: 'deploy.health_window_s',
+    kind: 'int',
+    min: 10,
+    defaultValue: '120',
+    label: 'Health window (seconds)',
+    help: 'How long a container must stay up and healthy before the deploy counts as good. Returns as soon as it is, so only a bad deploy costs the wait.',
+    advanced: true,
+  },
+
+  // -------------------------------------------------------- Keeping git in step
+  {
+    section: 'Keeping git in step',
     path: 'sync.push_main',
     kind: 'bool',
     defaultValue: 'true',
     label: 'Publish main',
-    help: 'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged.',
+    help: 'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged. Turning this off degrades dockhand to alert-only.',
   },
   {
-    section: 'Sync',
+    section: 'Keeping git in step',
     path: 'sync.blackout',
     kind: 'windows',
     defaultValue: '(none)',
@@ -222,79 +378,24 @@ export const SETTINGS: SettingDef[] = [
     help: 'Comma-separated HH:MM-HH:MM. No git or deploy work happens inside them.',
   },
   {
-    section: 'Sync',
+    section: 'Keeping git in step',
     path: 'sync.poll_active_s',
     kind: 'int',
     min: 15,
     defaultValue: '60',
     label: 'Poll interval, PRs open (s)',
     help: 'How often GitHub is checked while something is awaiting merge.',
+    advanced: true,
   },
   {
-    section: 'Sync',
+    section: 'Keeping git in step',
     path: 'sync.poll_idle_s',
     kind: 'int',
     min: 30,
     defaultValue: '600',
     label: 'Poll interval, idle (s)',
     help: 'How often GitHub is checked when nothing is open.',
-  },
-
-  {
-    section: 'Scanning',
-    path: 'scan.cron',
-    kind: 'cron',
-    defaultValue: '0 0 3 * * *',
-    label: 'Schedule',
-    help: 'Six fields, seconds first. Applies immediately, no restart needed.',
-  },
-
-  {
-    section: 'Updates',
-    path: 'defaults.patch',
-    kind: 'enum',
-    options: ['auto', 'gated', 'manual', 'skip'],
-    defaultValue: 'auto',
-    label: 'Patch updates',
-    help: 'What happens to a patch bump by default.',
-  },
-  {
-    section: 'Updates',
-    path: 'defaults.minor',
-    kind: 'enum',
-    options: ['auto', 'gated', 'manual', 'skip'],
-    defaultValue: 'auto',
-    label: 'Minor updates',
-    help: 'What happens to a minor bump by default.',
-  },
-  {
-    section: 'Updates',
-    path: 'defaults.major',
-    kind: 'enum',
-    options: ['manual'],
-    defaultValue: 'manual',
-    label: 'Major updates',
-    help: 'Majors always wait for a person.',
-    locked: 'not configurable — a major always needs a human',
-  },
-  {
-    section: 'Updates',
-    path: 'defaults.digest',
-    kind: 'enum',
-    options: ['auto', 'gated', 'manual', 'skip'],
-    defaultValue: 'manual',
-    label: 'Digest bumps',
-    help: 'What happens when a pinned digest moves.',
-  },
-
-  {
-    section: 'Deploy',
-    path: 'deploy.health_window_s',
-    kind: 'int',
-    min: 10,
-    defaultValue: '120',
-    label: 'Health check window (s)',
-    help: 'How long a container must stay healthy after a deploy before it counts.',
+    advanced: true,
   },
 ]
 
@@ -346,9 +447,11 @@ export function applySettings(changes: Record<string, string>): ApplyResult {
       continue
     }
 
-    const spliced = spliceValue(text, path, format(def, value))
+    const spliced = setValue(text, path, format(def, value))
     if (!spliced) {
-      errors.push(`${def.label}: could not find "${path}" in policy.yaml`)
+      // Only reachable for a path the splicer cannot even construct, which means a
+      // malformed SettingDef rather than anything about the operator's file.
+      errors.push(`${def.label}: "${path}" is not a settable key`)
       continue
     }
     if (spliced !== text) {
@@ -456,49 +559,158 @@ function format(def: SettingDef, value: string): string {
 }
 
 /**
- * Replace one key's value, leaving every byte of structure and commentary alone.
+ * Set one key's value, leaving every other byte of structure and commentary alone.
  *
- * Top-level keys (`merge_method`) sit at indent 0; the rest live one level under their
- * section, and the section's range is what disambiguates identically-named keys.
+ * Works at any depth, and creates what is missing. Three cases, in order:
+ *
+ *   1. the key is already there  -> its value is replaced, trailing comment kept
+ *   2. its parent block is there -> the key is inserted at the end of that block
+ *   3. nothing is there          -> the block, and the key, are appended
+ *
+ * Cases 2 and 3 are why this exists at all: without them, a key the schema knows about
+ * but the file has never mentioned is permanently unreachable from the UI, and since
+ * every field is submitted on every save, one such key disables the whole page.
+ *
+ * Returns null only when the path itself is unusable (empty, or an empty segment).
+ */
+export function setValue(text: string, path: string, formatted: string): string | null {
+  const parts = path.split('.')
+  if (parts.length === 0 || parts.some((p) => p === '')) return null
+
+  const replaced = spliceValue(text, path, formatted)
+  if (replaced !== null) return replaced
+  return insertValue(text, parts, formatted)
+}
+
+/**
+ * Replace an existing key, or null when it is not in the file.
+ *
+ * Each segment narrows the search to its parent's block, which is what disambiguates
+ * identically-named keys: `mode` exists under `claude`, `propose`, `deploy` and
+ * `model_tier`, and only the enclosing range tells them apart.
  */
 export function spliceValue(text: string, path: string, formatted: string): string | null {
   const lines = text.split('\n')
-  const parts = path.split('.')
+  const found = locate(lines, path.split('.'))
+  if (!found) return null
 
+  const m = new RegExp(`^([ \\t]*${escapeRe(found.key)}:[ \\t]*)(.*)$`).exec(lines[found.line]!)
+  if (!m) return null
+  // Preserve any trailing comment on the same line.
+  const trailing = /(\s+#.*)$/.exec(m[2]!)?.[1] ?? ''
+  lines[found.line] = `${m[1]}${formatted}${trailing}`
+  return lines.join('\n')
+}
+
+/** Where a dotted path's final key sits, or null when any segment is absent. */
+function locate(
+  lines: string[],
+  parts: string[],
+): { line: number; key: string; indent: string } | null {
   let from = 0
   let to = lines.length
-  let indent = ''
+  let depth = 0
 
-  if (parts.length === 2) {
-    const [section, key] = parts as [string, string]
-    const start = lines.findIndex((l) => new RegExp(`^${escapeRe(section)}:\\s*$`).test(l))
-    if (start === -1) return null
-    let end = lines.length
-    for (let i = start + 1; i < lines.length; i++) {
-      const l = lines[i]!
-      if (l.trim() === '' || l.startsWith('#')) continue
-      if (!/^\s/.test(l)) {
-        end = i
+  for (let p = 0; p < parts.length; p++) {
+    const key = parts[p]!
+    const indent = '  '.repeat(depth)
+    const re = new RegExp(`^${indent}${escapeRe(key)}:([ \\t]|$)`)
+    let hit = -1
+    for (let i = from; i < to; i++) {
+      if (re.test(lines[i]!)) {
+        hit = i
         break
       }
     }
-    from = start + 1
-    to = end
-    indent = '  '
-    parts[0] = key
-  }
-
-  const key = parts[parts.length - 1]!
-  const re = new RegExp(`^(${indent}${escapeRe(key)}:[ \\t]*)(.*)$`)
-  for (let i = from; i < to; i++) {
-    const m = re.exec(lines[i]!)
-    if (!m) continue
-    // Preserve any trailing comment on the same line.
-    const trailing = /(\s+#.*)$/.exec(m[2]!)?.[1] ?? ''
-    lines[i] = `${m[1]}${formatted}${trailing}`
-    return lines.join('\n')
+    if (hit === -1) return null
+    if (p === parts.length - 1) return { line: hit, key, indent }
+    from = hit + 1
+    to = blockEnd(lines, hit, depth)
+    depth++
   }
   return null
+}
+
+/** The first line at or above `depth` after `start` -- i.e. where that block stops. */
+function blockEnd(lines: string[], start: number, depth: number): number {
+  const want = depth * 2
+  for (let i = start + 1; i < lines.length; i++) {
+    const l = lines[i]!
+    if (l.trim() === '') continue
+    const indent = /^[ \t]*/.exec(l)![0].length
+    // A comment at the parent's own indent belongs to whatever comes next, not to this
+    // block -- stopping before it keeps an inserted key above the next section's header
+    // comment rather than orphaning it below.
+    if (indent <= want) return i
+  }
+  return lines.length
+}
+
+/**
+ * Insert a key that is not in the file yet, creating any parent blocks it needs.
+ *
+ * Appended at the end of the deepest parent that does exist, so an insertion never
+ * lands between a comment and the key that comment describes.
+ */
+function insertValue(text: string, parts: string[], formatted: string): string {
+  const lines = text.split('\n')
+
+  // How much of the path already exists?
+  let from = 0
+  let to = lines.length
+  let depth = 0
+  let insertAt = lines.length
+  let matched = 0
+
+  for (const key of parts.slice(0, -1)) {
+    const re = new RegExp(`^${'  '.repeat(depth)}${escapeRe(key)}:([ \\t]|$)`)
+    let hit = -1
+    for (let i = from; i < to; i++) {
+      if (re.test(lines[i]!)) {
+        hit = i
+        break
+      }
+    }
+    if (hit === -1) break
+    matched++
+    from = hit + 1
+    to = blockEnd(lines, hit, depth)
+    insertAt = to
+    depth++
+  }
+
+  // For a top-level key with no parents, append at the end of the document.
+  if (parts.length === 1) insertAt = trailingBlank(lines)
+  else if (matched === 0) insertAt = trailingBlank(lines)
+  else insertAt = backUpOverBlanks(lines, insertAt)
+
+  const block: string[] = []
+  // Nesting depth is path depth, so segment `p` always sits at `p` levels of indent.
+  for (let p = matched; p < parts.length - 1; p++) {
+    block.push(`${'  '.repeat(p)}${parts[p]}:`)
+  }
+  const leafIndent = '  '.repeat(parts.length - 1)
+  block.push(`${leafIndent}${parts[parts.length - 1]}: ${formatted}`)
+
+  // A brand-new top-level block reads better with a blank line above it.
+  if (matched === 0 && parts.length > 1) block.unshift('')
+
+  lines.splice(insertAt, 0, ...block)
+  return lines.join('\n')
+}
+
+/** Index of the first trailing blank line, so an append does not add to the gap. */
+function trailingBlank(lines: string[]): number {
+  let i = lines.length
+  while (i > 0 && lines[i - 1]!.trim() === '') i--
+  return i
+}
+
+/** Step back over blank lines so an insertion hugs the block it belongs to. */
+function backUpOverBlanks(lines: string[], at: number): number {
+  let i = at
+  while (i > 0 && lines[i - 1]!.trim() === '') i--
+  return i
 }
 
 function escapeRe(s: string): string {
