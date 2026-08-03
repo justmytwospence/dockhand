@@ -115,6 +115,20 @@ export const IconRefresh: IconFC = ({ cls }) => (
   </Icon>
 )
 
+export const IconInfo: IconFC = ({ cls }) => (
+  <Icon cls={cls}>
+    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+    <path d="M12 9h.01" />
+    <path d="M11 12h1v4h1" />
+  </Icon>
+)
+
+export const IconChevronRight: IconFC = ({ cls }) => (
+  <Icon cls={cls}>
+    <path d="M9 6l6 6l-6 6" />
+  </Icon>
+)
+
 export const IconSearch: IconFC = ({ cls }) => (
   <Icon cls={cls}>
     <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />

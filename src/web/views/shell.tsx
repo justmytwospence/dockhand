@@ -6,6 +6,7 @@ import {
   IconAuto,
   IconDashboard,
   IconImages,
+  IconInfo,
   IconMore,
   IconMoon,
   IconSettings,
@@ -188,6 +189,29 @@ export const ThemeToggle: FC = () => (
       </button>
     ))}
   </div>
+)
+
+/**
+ * The explanation that used to be a paragraph.
+ *
+ * Working screens are for data and controls; the reasoning behind a column, a tab or a
+ * setting is real and worth keeping, but it does not need to occupy a line of the
+ * screen forever. `container: body` matters -- with the fixed frame the scroll regions
+ * are `overflow: hidden`, and a popover rendered in place would be clipped by them.
+ */
+export const Help: FC<{ text: string; label?: string }> = ({ text, label }) => (
+  <button
+    type="button"
+    class="help-dot"
+    data-bs-toggle="popover"
+    data-bs-trigger="focus hover"
+    data-bs-placement="top"
+    data-bs-container="body"
+    data-bs-content={text}
+    aria-label={label ? `About ${label}` : 'More information'}
+  >
+    <IconInfo />
+  </button>
 )
 
 /** Title, optional subtitle, optional actions. Tabler's own page-header shape. */

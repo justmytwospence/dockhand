@@ -45,6 +45,29 @@ const SW_SCRIPT = `if ('serviceWorker' in navigator) {
   addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}) })
 }`
 
+/**
+ * Popovers, and keeping them alive across htmx swaps.
+ *
+ * Bootstrap auto-initialises the components driven by a click -- dropdowns, offcanvas,
+ * tabs -- through a delegated data-api listener, but never popovers or tooltips: those
+ * have to be constructed. And because half this UI arrives as htmx fragments, they have
+ * to be constructed again for whatever just landed, or every help dot inside a swapped
+ * region goes dead.
+ *
+ * `window.tabler` is the UMD global from tabler.min.js; it re-exports Bootstrap's
+ * classes. Guarded because the script is deferred and htmx:load can fire first.
+ */
+const POPOVER_SCRIPT = `(function(){
+  function init(root){
+    if (!window.tabler || !window.tabler.Popover) return;
+    (root || document).querySelectorAll('[data-bs-toggle="popover"]').forEach(function(el){
+      if (!window.tabler.Popover.getInstance(el)) new window.tabler.Popover(el);
+    });
+  }
+  addEventListener('load', function(){ init(); });
+  document.body.addEventListener('htmx:afterSwap', function(e){ init(e.target); });
+})()`
+
 export const Layout: FC<
   PropsWithChildren<{
     title: string
@@ -99,10 +122,19 @@ export const Layout: FC<
         <Sidebar path={path} />
         <div class="page-wrapper">
           <MobileBar title={title} />
+          {/* OUTSIDE .page-body, which is the scroll region. The title and the page's
+              primary action stay put while the content moves under them -- that is the
+              difference between a screen and a document. */}
+          {!bare && (
+            <div class="page-header-bar">
+              <div class="container-xl">
+                <PageHeader title={title} subtitle={subtitle} actions={actions} />
+              </div>
+            </div>
+          )}
           <div class="page-body">
             <div class="container-xl">
               {missing && missing.length > 0 && <Setup missing={missing} />}
-              {!bare && <PageHeader title={title} subtitle={subtitle} actions={actions} />}
               {children}
             </div>
           </div>
@@ -112,6 +144,8 @@ export const Layout: FC<
             offcanvas from the button that opens it. */}
         <MoreSheet path={path} />
       </div>
+      {/* End of body: it binds to document.body, which does not exist yet in <head>. */}
+      <script dangerouslySetInnerHTML={{ __html: POPOVER_SCRIPT }} />
     </body>
   </html>
 )

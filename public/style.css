@@ -1191,3 +1191,129 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
 .channels code {
   margin-right: 0.25rem;
 }
+
+/* ==========================================================================
+   The app frame
+   ==========================================================================
+
+   This is what makes dockhand stop behaving like a document.
+
+   A content page scrolls as a whole: chrome scrolls away, and the page is as tall as
+   its content. A tool is laid out to the VIEWPORT -- chrome is fixed, and the content
+   is a scroll *region* inside it. Every screen then has a stable, known height, which
+   is what lets a table own its own scrolling and keep its header visible.
+
+   Only from `lg` up. Internal scroll regions on a phone are genuinely worse than page
+   scroll: they fight the browser's URL-bar collapse, break momentum scrolling and hide
+   content behind a scrollbar nobody can see. Below 992px this whole block is off and
+   the page scrolls normally, which on a phone is the right behaviour. */
+
+@media (min-width: 992px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .page {
+    height: 100%;
+  }
+
+  /* dvh, not vh: vh is the *largest* viewport on mobile browsers and overshoots. The
+     sidebar is already position:fixed, so only this column needs sizing. */
+  .page-wrapper {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Title and primary action never move. */
+  .page-header-bar {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--tblr-border-color);
+    background: var(--tblr-body-bg);
+    padding-block: 0.75rem;
+  }
+
+  .page-header-bar .page-header {
+    margin: 0;
+  }
+
+  /* The one thing that scrolls. min-height:0 is required -- without it a flex child
+     refuses to shrink below its content and the region never scrolls at all. */
+  .page-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-block: 1.25rem;
+  }
+
+  /* Opt in per page: fill the region exactly rather than flowing past it, so the card
+     inside owns the scrolling. Used by the worklist and the data grids. */
+  .page-body.fill,
+  .page-body.fill > .container-xl {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+}
+
+/* A table whose header stays put while its body scrolls. Tabler ships no equivalent.
+   Works against whichever ancestor scrolls -- .table-responsive here -- so it is
+   correct on mobile page-scroll too. */
+.table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--tblr-bg-surface);
+}
+
+/* A card that fills its parent and scrolls internally instead of growing the page. */
+.card-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-fill > .table-responsive {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------------ help dots */
+
+/* The (i) that replaced a paragraph. Sized and coloured to sit beside a heading
+   without competing with it. */
+.help-dot {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-left: 0.35rem;
+  line-height: 0;
+  color: var(--tblr-secondary-color);
+  opacity: 0.65;
+  cursor: help;
+  vertical-align: -0.15em;
+}
+
+.help-dot:hover,
+.help-dot:focus-visible {
+  opacity: 1;
+  color: var(--tblr-primary);
+}
+
+.help-dot svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.popover {
+  --tblr-popover-max-width: 22rem;
+  font-size: 0.85rem;
+}

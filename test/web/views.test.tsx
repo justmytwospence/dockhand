@@ -146,3 +146,22 @@ test('the service worker is registered from the root, which is where its scope c
   // navigations it exists to leave alone.
   assert.match(R.layout!, /navigator\.serviceWorker\.register\('\/sw\.js'\)/)
 })
+
+test('the page header sits outside the scroll region', () => {
+  // This is the frame: chrome fixed, content scrolling under it. If the header were
+  // inside .page-body it would scroll away and the app would be a document again.
+  const header = R.dashboard!.indexOf('page-header-bar')
+  const body = R.dashboard!.indexOf('<div class="page-body')
+  assert.ok(header > -1, 'no page-header-bar')
+  assert.ok(header < body, 'the header must precede the scroll region, not sit inside it')
+})
+
+test('popovers are initialised, and re-initialised after every htmx swap', () => {
+  // Bootstrap auto-inits click-driven components but never popovers. Half this UI
+  // arrives as fragments, so a help dot inside a swapped region is dead without this.
+  assert.match(R.layout!, /htmx:afterSwap/)
+  assert.match(R.layout!, /window\.tabler\.Popover/)
+  // Bound to document.body, so the script must come after it.
+  const script = R.layout!.indexOf('htmx:afterSwap')
+  assert.ok(script > R.layout!.indexOf('<body>'), 'popover script must be inside body')
+})
