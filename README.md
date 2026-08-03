@@ -75,25 +75,47 @@ carve-out got silently reverted in a refactor because nobody could see the polic
 place.
 
 Both are covered with examples under [Running it yourself](#running-it-yourself), and
-the policy file is editable from the Settings page.
+the policy file is editable from the Settings page — which writes it in place, keeping
+your comments, and commits the change. Write out every key you care about even where it
+equals the default: the file is meant to be the one place these semantics are declared,
+and a key it omits is one nobody reading it knows exists.
 
 ## The policy model
 
-The static tier and Claude's verdict combine by taking **the more conservative of the
+One axis — **how much happens without you** — with four rungs. Set the default per
+version magnitude in `policy.yaml`; override it for one service with a
+`dockhand.policy` label, which always wins.
+
+| Rung | What happens |
+|---|---|
+| `auto` | A pull request opens and dockhand merges it, unless the changelog review objects. |
+| `manual` | A pull request opens. You merge it. |
+| `on-request` | Nothing opens. The update is listed until you ask for a pull request. |
+| `skip` | Not tracked at all. |
+
+The static rung and Claude's verdict combine by taking **the more conservative of the
 two**. Claude is a one-directional damper:
 
-| Static tier | Verdict | Result |
+| Static rung | Verdict | Result |
 |---|---|---|
 | auto | approve, confident | auto-merge, then deploy |
 | auto | caution / block / unsure | PR stays open for a human |
 | auto | *analysis unavailable* | merge per static policy (fail-open) |
-| manual or gated | anything | PR always; never auto-merged |
+| manual | anything | PR always; never auto-merged |
 
 Claude can **block** an update that policy would have merged. It can never **promote**
-one. Majors and gated services are never auto-merged, and that is not configurable.
+one. Majors, digest moves, and any pull request carrying more than an image line are
+never auto-merged, and that is not configurable.
 
 This is also the prompt-injection boundary: release notes are untrusted input, and the
 worst a hostile changelog can achieve is to stop an update.
+
+`gated` is accepted as a spelling of `manual`. It used to be a fifth rung, and it
+behaved identically to `manual` in every decision — same merge answer, same PR answer —
+so it was a choice with no consequence rather than a control.
+
+The whole model is also rendered at `/about` in the running app, against the live
+config.
 
 ## Running it yourself
 
@@ -164,8 +186,13 @@ takes effect on the next scan without recreating anything.
                                    #  | digest | latest | regex
       # Optional:
       dockhand.tag.include: '^\d{1,3}\.\d+\.\d+$$'  # narrow the candidates ($$ escapes $)
-      dockhand.policy: gated       # auto | gated | manual | skip | model
-      dockhand.pr: on-request      # detect and show, but only open a PR when asked
+      dockhand.policy: manual      # auto | manual | on-request | skip | model
+                                   #   this service's rung. `gated` is accepted and
+                                   #   means `manual`. Anything unrecognised narrows
+                                   #   to `manual` rather than widening.
+      dockhand.pr: on-request      # the original spelling of the on-request rung,
+                                   #   still honoured; dockhand.policy now expresses
+                                   #   the whole ladder in one label
       dockhand.source: https://github.com/owner/repo   # if the image lacks an OCI source label
       dockhand.propose: service    # none | service | compose-file | compose-dir | repo
                                    #   how far a drafted change may reach, derived from
@@ -180,7 +207,7 @@ takes effect on the next scan without recreating anything.
 
 `dockhand.policy: model` defers the auto-versus-review question to the changelog
 review, instead of deciding it by version magnitude. It is the one place a model can
-*raise* a tier rather than only lower it, so promotion requires all of:
+*raise* a rung rather than only lower it, so promotion requires all of:
 
 - the image resolves to a real upstream (its own OCI annotation, a curated override,
   LinuxServer's API, or your `dockhand.source` label);
@@ -214,7 +241,7 @@ prs:
   enabled: true
   scope: coexist              # coexist | full -- see below
   max_open: 5
-defaults:
+defaults:                     # auto | manual | on-request | skip
   patch: auto
   minor: auto
   major: manual               # forced; majors always need a human
@@ -222,8 +249,23 @@ defaults:
 claude:
   mode: advisory              # advisory | off
   model: claude-haiku-4-5-20251001
+  code_model: claude-opus-5   # for drafted config changes: rare, high-stakes
   min_confidence: medium
   monthly_budget_usd: 10
+  web:                        # what a call costs is what it reads
+    searches: 4
+    fetches: 5
+    content_tokens: 12000
+merge:
+  auto: false                 # the only unattended write path. Off.
+  max_per_run: 3
+model_tier:
+  mode: shadow                # off | shadow | enforce
+propose:
+  mode: auto                  # auto | manual | off
+deploy:
+  mode: manual                # auto | manual | off
+  health_window_s: 120
 scan:
   cron: "0 0 3 * * *"         # seconds first
 ```
@@ -245,9 +287,10 @@ disables pull requests.
 ## Status
 
 Working today: detection across every registry, digest watching, grouped pull requests,
-changelog analysis with merge/hold verdicts, and a web UI. Merged pull requests are
-synced into the checkout and the deploy command is sent to you; running it
-automatically, and auto-merging what policy allows, is the next milestone.
+changelog analysis with merge/hold verdicts, drafted config changes, a deploy engine,
+an auto-merge engine, and a web UI. The two engines that can act unattended —
+`merge.auto` and `deploy.mode: auto` — ship off, because turning one on should be a
+decision rather than a consequence of upgrading.
 
 ## Licence
 
