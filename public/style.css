@@ -1526,3 +1526,42 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
 .settings-panes {
   min-width: 0;
 }
+
+/* --------------------------------------------------------------- data grids */
+
+/* Images and Activity are grids: a toolbar attached to the data, and a table that
+   scrolls inside its card rather than growing the page. */
+.imgfilters.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.imgfilters .imgtools {
+  flex: 1 1 20rem;
+}
+
+/* The filter strip scrolls sideways rather than wrapping the header onto three lines. */
+.card-header .filters {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0;
+}
+
+.card-header .filters::-webkit-scrollbar {
+  display: none;
+}
+
+/* A fragment swapped straight into a scroll container: it brings the table, the
+   container brings the scrolling. */
+.card-fill > .table-responsive.flex-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Empty states inside a scroll container still want the card's padding. */
+.card-fill > .table-responsive > .nothing {
+  padding: 1.25rem;
+}

@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx'
-import { Layout, Empty, Table, type MissingSetting } from './layout.tsx'
+import { Layout, Empty, type MissingSetting } from './layout.tsx'
+import { Help } from './shell.tsx'
 
 export const KINDS = ['scan', 'policy', 'pr', 'analysis', 'deploy', 'sync', 'system'] as const
 
@@ -18,9 +19,17 @@ export const ActivityPage: FC<{
     title="Activity"
     path="/activity"
     missing={missing}
-    subtitle="Every recorded event, newest first."
+    fill
+    actions={
+      <span class="sub">
+        {rows.length} event{rows.length === 1 ? '' : 's'}
+        <Help label="Activity" text="Every recorded event, newest first. Capped at the most recent 200." />
+      </span>
+    }
   >
-    <ul class="nav nav-pills filters mb-3">
+    <div class="card card-fill">
+    <div class="card-header">
+    <ul class="nav nav-pills filters flex-nowrap">
       <li class="nav-item">
         <a
           href="/activity"
@@ -51,9 +60,11 @@ export const ActivityPage: FC<{
         </a>
       </li>
     </ul>
+    </div>
 
-    <div id="activity-table">
+    <div id="activity-table" class="table-responsive flex-fill">
       <ActivityTable rows={rows} repo={repo} />
+    </div>
     </div>
   </Layout>
 )
@@ -65,7 +76,7 @@ export const ActivityTable: FC<{ rows: Record<string, unknown>[]; repo: string }
   rows.length === 0 ? (
     <Empty>Nothing matches this filter.</Empty>
   ) : (
-    <Table>
+    <table class="table card-table table-vcenter table-sticky">
       <thead>
         <tr>
           <th>When</th>
@@ -98,7 +109,7 @@ export const ActivityTable: FC<{ rows: Record<string, unknown>[]; repo: string }
           )
         })}
       </tbody>
-    </Table>
+    </table>
   )
 
 /**

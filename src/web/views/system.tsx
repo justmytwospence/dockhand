@@ -52,6 +52,8 @@ export const SystemPage: FC<{
   <Layout title="System" path="/system" missing={missing}>
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
+    <div class="row row-deck row-cards">
+    <div class="col-12 col-xl-6">
     <Table title="Configuration" kv>
       <tbody>
         <tr>
@@ -106,6 +108,8 @@ export const SystemPage: FC<{
       </tbody>
     </Table>
 
+    </div>
+    <div class="col-12 col-xl-6">
     <Table title="Last scan" kv>
       <tbody>
         <tr>
@@ -129,6 +133,8 @@ export const SystemPage: FC<{
       </tbody>
     </Table>
 
+    </div>
+    <div class="col-12 col-xl-6">
     <Table title="Credentials" sub="Presence only — values are never read into the UI." kv>
       <tbody>
         <Cred name="GITHUB_TOKEN" set={!!env.githubToken} />
@@ -147,6 +153,8 @@ export const SystemPage: FC<{
         also has a test button.
       </p>
     )}
+    </div>
+    </div>
 
     {!modelTier || modelTier.length === 0 ? (
       <Panel title="Model-decided updates">

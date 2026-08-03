@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx'
 import type { ScannedService } from '../../compose/scan.ts'
-import { Layout, Empty, Table, type MissingSetting } from './layout.tsx'
+import { Layout, Empty, type MissingSetting } from './layout.tsx'
+import { Help } from './shell.tsx'
 import { displayName } from '../../images/ref.ts'
 import { IconSearch } from './icons.tsx'
 import { refLinks } from '../../links.ts'
@@ -34,10 +35,19 @@ export const ImagesPage: FC<{
     title="Images"
     path="/images"
     missing={missing}
-    subtitle="Read from the compose files in the working tree — never from running container labels, so a label edit takes effect on the next scan without recreating anything."
+    fill
+    actions={
+      <span class="sub">
+        {services.length} shown
+        <Help
+          label="Image inventory"
+          text="Read from the compose files in the working tree — never from running container labels, so a label edit takes effect on the next scan without recreating anything."
+        />
+      </span>
+    }
   >
-
-    <form class="imgfilters" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
+    <div class="card card-fill">
+    <form class="imgfilters card-header" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
       {/* Tabler's select-group: the radio's own `checked` state drives the visual, so
           the hand-rolled `active` class and the visually-hidden-input CSS both go. Still
           inside the one <form>, which is what hx-include="closest form" needs. */}
@@ -94,8 +104,9 @@ export const ImagesPage: FC<{
       </div>
     </form>
 
-    <div id="images-table">
+    <div id="images-table" class="table-responsive flex-fill">
       <ImagesTable services={services} statusMap={statusMap} grouped={grouped} />
+    </div>
     </div>
   </Layout>
 )
@@ -121,14 +132,14 @@ export const ImagesTable: FC<{
 
   if (!grouped) {
     return (
-      <Table>
+      <table class="table card-table table-vcenter table-sticky">
         {HEAD}
         <tbody>
           {services.map((s) => (
             <ImageRow svc={s} status={statusMap.get(`${s.stack}/${s.service}`)} />
           ))}
         </tbody>
-      </Table>
+      </table>
     )
   }
 
@@ -139,7 +150,7 @@ export const ImagesTable: FC<{
   for (const s of services) stacks.set(s.stack, [...(stacks.get(s.stack) ?? []), s])
 
   return (
-    <Table>
+    <table class="table card-table table-vcenter table-sticky">
       {HEAD}
       {[...stacks].map(([stack, rows]) => (
         <tbody class="stackgroup">
@@ -160,7 +171,7 @@ export const ImagesTable: FC<{
           ))}
         </tbody>
       ))}
-    </Table>
+    </table>
   )
 }
 
