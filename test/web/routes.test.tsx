@@ -38,7 +38,7 @@ test('every page returns a whole document', async () => {
     const res = await app.request(path)
     assert.equal(res.status, 200, path)
     const html = await res.text()
-    assert.match(html, /^<html lang="en">/, path)
+    assert.match(html, /^<html lang="en" data-bs-theme="(light|dark)">/, path)
     assert.match(html, /<\/html>$/, path)
   }
 })

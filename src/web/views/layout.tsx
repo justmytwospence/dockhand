@@ -14,16 +14,54 @@ export interface MissingSetting {
   why: string
 }
 
+/**
+ * Resolve the theme before anything paints.
+ *
+ * Three stored states -- auto, light, dark -- collapsing to the two Bootstrap
+ * understands. `auto` follows the OS and keeps following it, which is why the
+ * matchMedia listener is registered here rather than with the toggle: the listener has
+ * to exist on every page, and the toggle does not.
+ *
+ * Deliberately tiny and inline. A deferred external script would run after first paint,
+ * which is exactly the flash this avoids.
+ */
+export const THEME_SCRIPT = `(function(){
+  var q = matchMedia('(prefers-color-scheme: dark)');
+  function pick(){
+    var s = localStorage.getItem('dockhand-theme') || 'auto';
+    return s === 'auto' ? (q.matches ? 'dark' : 'light') : s;
+  }
+  function apply(){
+    var t = pick();
+    document.documentElement.setAttribute('data-bs-theme', t);
+    var m = document.querySelector('meta[name=theme-color]');
+    if (m) m.setAttribute('content', t === 'dark' ? '#16171a' : '#fbfbfa');
+  }
+  apply();
+  q.addEventListener('change', apply);
+  window.dockhandSetTheme = function(v){ localStorage.setItem('dockhand-theme', v); apply(); };
+})()`
+
 export const Layout: FC<
   PropsWithChildren<{ title: string; path: string; missing?: MissingSetting[] }>
 > = ({ title, path, missing, children }) => (
-  <html lang="en">
+  <html lang="en" data-bs-theme="light">
     <head>
       <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      {/* viewport-fit=cover so env(safe-area-inset-*) is non-zero on a notched phone;
+          without it the mobile tab bar sits under the home indicator. */}
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       <title>{title} &middot; dockhand</title>
+      {/* First, and NOT deferred. Bootstrap 5.3 has no data-bs-theme="auto" -- auto has
+          to be resolved to light or dark before the stylesheets paint, or the page
+          flashes the wrong theme on every navigation. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      <link rel="stylesheet" href="/static/tabler.min.css" />
+      {/* After Tabler: source order settles every same-specificity tie in our favour,
+          which is what lets the bespoke CSS below stay unedited. */}
       <link rel="stylesheet" href="/static/style.css" />
       <script src="/static/htmx.min.js" defer></script>
+      <script src="/static/tabler.min.js" defer></script>
       <link
         rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%A2%3C/text%3E%3C/svg%3E"

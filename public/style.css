@@ -1,19 +1,61 @@
-:root {
-  --bg: #fbfbfa;
-  --panel: #fff;
-  --fg: #1c1c1a;
-  --muted: #6b6b66;
-  --line: #e3e3df;
-  --accent: #2f6f57;
-  --warn: #9a6a12;
-  --error: #a33227;
-  --ok: #2f6f57;
-  --radius: 6px;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  /* One column definition, used by both the top bar and the page body so their
-     contents line up on every viewport. */
-  --col: 1080px;
-  --gutter: 1.5rem;
+/* dockhand app styles.
+ *
+ * Loaded AFTER /static/tabler.min.css, which is Tabler 1.4.0 (MIT) with Bootstrap 5.3.7
+ * and Popper bundled inside. Vendored, not linked from a CDN, so the app works on a LAN
+ * with no egress and the service worker can precache it.
+ *
+ *   tabler.min.css  sha256 7ef750bd10546a695d0b12767ad8048bd8f3ec5de7daefb1067f9d0daa3d1c9a
+ *   tabler.min.js   sha256 b60c76160e97624574dbb8cf10abe6aee9a6493b60096fdfc15dd1dd2bd99eb9
+ *   https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/{css/tabler.min.css,js/tabler.min.js}
+ *
+ * Source order is the whole layering strategy: Tabler only styles elements carrying its
+ * own classes, we only add those classes where we want its styling, and where both
+ * match at equal specificity this file wins because it comes second. No @layer needed.
+ */
+
+/* ------------------------------------------------------- theme: our palette, Tabler's names
+ *
+ * Direction matters. We set TABLER's variables from our palette, then alias ours back to
+ * Tabler's below. Doing it the other way round would hand the app Tabler's blue identity.
+ *
+ * Theming is now driven by [data-bs-theme] on <html>, set before first paint by the
+ * inline script in layout.tsx -- so there is a real auto/light/dark choice where there
+ * used to be only whatever the OS said.
+ */
+
+:root,
+[data-bs-theme='light'] {
+  --tblr-body-bg: #fbfbfa;
+  --tblr-bg-surface: #fff;
+  --tblr-bg-surface-secondary: #f6f6f4;
+  --tblr-body-color: #1c1c1a;
+  --tblr-secondary-color: #6b6b66;
+  --tblr-border-color: #e3e3df;
+
+  /* Overriding --tblr-primary flows through to .btn-primary, .nav-pills and links.
+     It does NOT reach --tblr-primary-{text-emphasis,bg-subtle,border-subtle}: those are
+     Sass-baked literals, so .text-primary-emphasis / .bg-primary-subtle / .link-primary
+     would render Tabler blue against our green. Don't use them. */
+  --tblr-primary: #2f6f57;
+  --tblr-primary-rgb: 47, 111, 87;
+  --tblr-primary-fg: #fff;
+  --tblr-primary-darken: #275c48;
+  --tblr-success: #2f6f57;
+  --tblr-success-rgb: 47, 111, 87;
+  --tblr-warning: #9a6a12;
+  --tblr-warning-rgb: 154, 106, 18;
+  --tblr-danger: #a33227;
+  --tblr-danger-rgb: 163, 50, 39;
+  --tblr-link-color: #2f6f57;
+  --tblr-link-color-rgb: 47, 111, 87;
+  --tblr-link-hover-color: #275c48;
+
+  --tblr-font-sans-serif: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --tblr-font-monospace: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  /* Tabler ships .875rem/1.4285; keep the measure this app was tuned at. */
+  --tblr-body-font-size: 0.9375rem;
+  --tblr-body-line-height: 1.55;
+  /* --tblr-border-radius is already 6px, which is what --radius was. */
 
   /* Event kinds. One hue each so the activity log is scannable by colour alone. */
   --k-scan: #3b6fd4;
@@ -25,26 +67,56 @@
   --k-system: #8a8a84;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16171a;
-    --panel: #1d1f23;
-    --fg: #e6e6e3;
-    --muted: #9a9a94;
-    --line: #2c2f35;
-    --accent: #6fc09b;
-    --warn: #d8a33f;
-    --error: #e2796c;
-    --ok: #6fc09b;
+[data-bs-theme='dark'] {
+  --tblr-body-bg: #16171a;
+  --tblr-bg-surface: #1d1f23;
+  --tblr-bg-surface-secondary: #16171a;
+  --tblr-body-color: #e6e6e3;
+  --tblr-secondary-color: #9a9a94;
+  --tblr-border-color: #2c2f35;
 
-    --k-scan: #7ba0e8;
-    --k-policy: #b18ee8;
-    --k-pr: #5fbdbd;
-    --k-analysis: #d8a854;
-    --k-deploy: #6fc09b;
-    --k-sync: #7fbcd8;
-    --k-system: #a8a8a2;
-  }
+  --tblr-primary: #6fc09b;
+  --tblr-primary-rgb: 111, 192, 155;
+  --tblr-primary-fg: #16171a;
+  --tblr-primary-darken: #5aa886;
+  --tblr-success: #6fc09b;
+  --tblr-success-rgb: 111, 192, 155;
+  --tblr-warning: #d8a33f;
+  --tblr-warning-rgb: 216, 163, 63;
+  --tblr-danger: #e2796c;
+  --tblr-danger-rgb: 226, 121, 108;
+  --tblr-link-color: #6fc09b;
+  --tblr-link-color-rgb: 111, 192, 155;
+  --tblr-link-hover-color: #8ad0b1;
+
+  --k-scan: #7ba0e8;
+  --k-policy: #b18ee8;
+  --k-pr: #5fbdbd;
+  --k-analysis: #d8a854;
+  --k-deploy: #6fc09b;
+  --k-sync: #7fbcd8;
+  --k-system: #a8a8a2;
+}
+
+/* The legacy names, now aliases.
+ *
+ * This block is why ~700 lines below -- the diff viewer, the kind chips, the settings
+ * grid, the About pipeline, prompt editors, proposals -- need no edits at all, and gain
+ * the theme toggle for free. Deleting it would mean touching every one of them. */
+:root {
+  --bg: var(--tblr-body-bg);
+  --panel: var(--tblr-bg-surface);
+  --fg: var(--tblr-body-color);
+  --muted: var(--tblr-secondary-color);
+  --line: var(--tblr-border-color);
+  --accent: var(--tblr-primary);
+  --warn: var(--tblr-warning);
+  --error: var(--tblr-danger);
+  --ok: var(--tblr-success);
+  --radius: var(--tblr-border-radius);
+  --mono: var(--tblr-font-monospace);
+  --col: 1080px;
+  --gutter: 1.5rem;
 }
 
 * {
@@ -56,11 +128,8 @@ html {
 }
 
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* Wide content scrolls inside its own container; the page itself never does. */
+  /* Colour, family, size and line-height all come from the Tabler tokens above now.
+     Only the horizontal-scroll guard is ours. */
   overflow-x: hidden;
 }
 

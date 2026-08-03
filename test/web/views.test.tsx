@@ -90,7 +90,7 @@ test('activity kind chips carry their colour as an inline custom property', () =
 test('every page is a complete document and names itself', () => {
   for (const key of ['dashboard', 'images', 'activity', 'settings', 'system', 'about']) {
     const html = R[key]!
-    assert.match(html, /^<html lang="en">/, key)
+    assert.match(html, /^<html lang="en" data-bs-theme="(light|dark)">/, key)
     assert.match(html, /<title>[^<]+ · dockhand<\/title>/, key)
     assert.match(html, /<meta name="viewport"/, key)
   }
@@ -100,4 +100,21 @@ test('fragments carry no document chrome', () => {
   for (const key of ['pending', 'images-table', 'image-row', 'settings-form', 'digest-preview', 'diff']) {
     assert.doesNotMatch(R[key]!, /<html|<head|<body/, key)
   }
+})
+
+test('the theme is resolved before anything paints', () => {
+  // Bootstrap has no data-bs-theme="auto", so auto has to collapse to light or dark in
+  // JS. If that script were deferred or placed after the stylesheets, every navigation
+  // would flash the wrong theme first.
+  const head = R.layout!.slice(0, R.layout!.indexOf('</head>'))
+  const script = head.indexOf('dockhand-theme')
+  const tabler = head.indexOf('tabler.min.css')
+  const app = head.indexOf('style.css')
+  assert.ok(script > -1 && script < tabler, 'theme script must precede the stylesheets')
+  assert.ok(tabler < app, 'app styles must load after Tabler so source order settles ties')
+  assert.doesNotMatch(head.slice(script - 60, script), /defer/)
+})
+
+test('the viewport opts into the safe-area insets the mobile bar needs', () => {
+  assert.match(R.layout!, /viewport-fit=cover/)
 })
