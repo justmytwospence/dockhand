@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
 import { SECTIONS, SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
 import { Layout, Banner, type MissingSetting } from './layout.tsx'
+import { Help } from './shell.tsx'
 import { PROMPTS, type PromptName } from '../../prompts/index.ts'
 
 /**
@@ -26,6 +27,66 @@ export interface PromptState {
 export const slug = (s: string): string =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
+/**
+ * Everything reachable from the settings screen, in one list.
+ *
+ * The nine policy sections come from SECTIONS; Digest and Prompts are panes too, because
+ * from the operator's point of view they are just more settings -- they only differ in
+ * where they are stored, which is an implementation detail.
+ */
+const PANES = [
+  ...SECTIONS.map(([name, blurb]) => ({ id: slug(name), label: name, blurb, form: true })),
+  {
+    id: 'next-digest',
+    label: 'Next digest',
+    blurb:
+      'Exactly what would be sent, rendered by the code that sends it. A batched notification is otherwise invisible until it fires, which makes it hard to trust and hard to tune.',
+    form: false,
+  },
+  {
+    id: 'prompts',
+    label: 'Prompts',
+    blurb:
+      'What the models are actually told — the instructions behind every verdict and every drafted change. Stored separately from policy.yaml, so upgrades keep shipping new defaults you can return to.',
+    form: false,
+  },
+] as const
+
+/**
+ * Switching panes, and keeping the URL honest.
+ *
+ * Bootstrap's own tab JS would work, but it does not know about the hash, and /about
+ * links straight at individual sections (`/settings#reading-the-changelog`). So this
+ * does both: activate on click AND on load from the hash, and write the hash back as
+ * you move so the address bar always names what you are looking at.
+ *
+ * It also hides the Save bar on the two panes that are not part of the form -- a Save
+ * button that does nothing for what is on screen is worse than no button.
+ */
+const PANE_SCRIPT = `(function(){
+  function show(id, push){
+    var pane = document.getElementById('pane-' + id);
+    if (!pane) return false;
+    document.querySelectorAll('.settings-pane').forEach(function(p){ p.classList.toggle('active', p === pane); });
+    document.querySelectorAll('.settings-nav .nav-link').forEach(function(a){
+      a.classList.toggle('active', a.dataset.pane === id);
+    });
+    var bar = document.querySelector('.sticky-save');
+    if (bar) bar.hidden = pane.dataset.form !== '1';
+    if (push) history.replaceState(null, '', '#' + id);
+    return true;
+  }
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('.settings-nav .nav-link');
+    if (!a) return;
+    e.preventDefault();
+    show(a.dataset.pane, true);
+  });
+  addEventListener('hashchange', function(){ show(location.hash.slice(1), false); });
+  var first = document.querySelector('.settings-nav .nav-link');
+  if (!show(location.hash.slice(1), false) && first) show(first.dataset.pane, false);
+})()`
+
 export const SettingsPage: FC<{
   policy: Policy
   models: string[]
@@ -37,50 +98,59 @@ export const SettingsPage: FC<{
     title="Settings"
     path="/settings"
     missing={missing}
-    subtitle={
-      <>
-        These are the contents of <code>policy.yaml</code>. Saving edits that file in
-        place and commits it, so every change is reviewable in <code>git log</code>.{' '}
-        <a href="/settings/raw">View the file &rarr;</a>
-      </>
+    fill
+    actions={
+      <a class="btn" href="/settings/raw">
+        View policy.yaml
+      </a>
     }
   >
+    <div class="settings-shell">
+      {/* Section list. Sticky, so the place you are in the config is always visible --
+          which is the thing eleven stacked cards could never tell you. */}
+      <nav class="settings-nav" aria-label="Settings sections">
+        <ul class="nav nav-pills flex-column">
+          {PANES.map((p) => (
+            <li class="nav-item">
+              <a class="nav-link" href={`#${p.id}`} data-pane={p.id}>
+                {p.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p class="sub settings-note">
+          A changelog review can withhold a merge and can never cause one. The model that
+          ties these together is on <a href="/about">About</a>.
+        </p>
+      </nav>
 
-    <div class="rule compact">
-      Sections follow the path an update takes. The model that ties them together is on{' '}
-      <a href="/about">About</a> &mdash; in one line: a changelog review can withhold a
-      merge and can never cause one.
+      <div class="settings-panes">
+        <div id="settings-form">
+          <SettingsForm policy={policy} models={models} result={result} />
+        </div>
+
+        <div class="settings-pane" id="pane-next-digest" data-form="0">
+          <div class="pane-head">
+            <h3 class="pane-title">Next digest</h3>
+            <Help label="Next digest" text={PANES.find((p) => p.id === 'next-digest')!.blurb} />
+          </div>
+          <div id="digest-preview" hx-get="/settings/digest" hx-trigger="load" hx-swap="innerHTML">
+            <p class="sub">loading&hellip;</p>
+          </div>
+        </div>
+
+        <div class="settings-pane" id="pane-prompts" data-form="0">
+          <div class="pane-head">
+            <h3 class="pane-title">Prompts</h3>
+            <Help label="Prompts" text={PANES.find((p) => p.id === 'prompts')!.blurb} />
+          </div>
+          {prompts.map((p) => (
+            <PromptEditorFragment state={p} />
+          ))}
+        </div>
+      </div>
     </div>
-
-    <div id="settings-form">
-      <SettingsForm policy={policy} models={models} result={result} />
-    </div>
-
-    <h2>Next digest</h2>
-    <p class="sub">
-      Exactly what would be sent, rendered by the code that sends it. A batched
-      notification is otherwise invisible until it fires, which makes it hard to trust and
-      hard to tune.
-    </p>
-    <div
-      id="digest-preview"
-      hx-get="/settings/digest"
-      hx-trigger="load"
-      hx-swap="innerHTML"
-    >
-      <p class="sub">loading&hellip;</p>
-    </div>
-
-    <h2>Prompts</h2>
-    <p class="sub">
-      What the models are actually told. These are the instructions behind every verdict
-      and every drafted change &mdash; edit them if the judgements you are getting are not
-      the judgements you want. Stored separately from <code>policy.yaml</code>, so upgrades
-      keep shipping new defaults you can return to.
-    </p>
-    {prompts.map((p) => (
-      <PromptEditorFragment state={p} />
-    ))}
+    <script dangerouslySetInnerHTML={{ __html: PANE_SCRIPT }} />
   </Layout>
 )
 
@@ -159,21 +229,20 @@ export const SettingsForm: FC<{
       // collapses a legend that is literally the same object.
       const shared = sharedLegend(all)
       return (
-        <section id={slug(name)} class="card mb-3">
-          <div class="card-header d-block">
-            <h3 class="card-title mb-0">{name}</h3>
-            <p class="sub mb-0 mt-1">{blurb}</p>
+        // One pane per section; only the active one is displayed. `id` keeps the slug
+        // /about links at, and data-form tells the pane script whether Save applies.
+        <section id={`pane-${slug(name)}`} class="settings-pane" data-form="1">
+          <div class="pane-head">
+            <h3 class="pane-title">{name}</h3>
+            <Help label={name} text={blurb} />
+            {shared && (
+              <Help
+                label={`${name} options`}
+                text={shared.options.map((o) => `${o} — ${shared.help[o]}`).join('\n')}
+              />
+            )}
           </div>
-          <div class="card-body">
-          {shared && (
-            <p class="sub optlegend hoisted">
-              {shared.options.map((o) => (
-                <span class="opt">
-                  <code>{o}</code> {shared.help[o]}
-                </span>
-              ))}
-            </p>
-          )}
+          <div>
           {primary.length > 0 && (
             <div class="settings">
               {primary.map((def) => (
@@ -256,6 +325,16 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
     <div class={`setting${def.locked ? ' locked' : ''}`}>
       <label for={def.path}>
         {def.label}
+        {/* Reference material for the enum, on demand rather than always on screen. */}
+        {legend && def.optionHelp && !def.locked && (
+          <Help
+            label={def.label}
+            text={(def.options ?? [])
+              .filter((o) => def.optionHelp?.[o])
+              .map((o) => `${o} — ${def.optionHelp![o]}`)
+              .join('\n')}
+          />
+        )}
         {changed && (
           <span class="pill accent changed" title={`default: ${def.defaultValue}`}>
             changed
@@ -273,19 +352,6 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
         {def.locked ? <em>{def.locked}. </em> : null}
         {def.help}
         {changed && <span class="sub"> (default: {def.defaultValue})</span>}
-        {/* The gloss belongs under the control, not inside every option label: an
-            option list is for choosing, and a sentence per choice does not fit in one. */}
-        {legend && def.optionHelp && !def.locked && (
-          <span class="optlegend">
-            {(def.options ?? [])
-              .filter((o) => def.optionHelp?.[o])
-              .map((o) => (
-                <span class={value === o ? 'opt current' : 'opt'}>
-                  <code>{o}</code> {def.optionHelp![o]}
-                </span>
-              ))}
-          </span>
-        )}
       </p>
     </div>
   )

@@ -1095,27 +1095,6 @@ details.advanced .settings {
 }
 
 /* One line per option, so an enum explains itself without a manual. */
-.optlegend {
-  display: block;
-  margin-top: 0.3rem;
-}
-
-.optlegend .opt {
-  display: block;
-  line-height: 1.45;
-  opacity: 0.75;
-}
-
-.optlegend .opt.current {
-  opacity: 1;
-  color: var(--fg);
-}
-
-.optlegend code {
-  min-width: 5.5rem;
-  display: inline-block;
-}
-
 /* Twenty-six settings is a long page; the save button should not be at the bottom of it. */
 .scanbar.sticky-save {
   position: sticky;
@@ -1127,23 +1106,9 @@ details.advanced .settings {
 }
 
 @media (max-width: 640px) {
-  .optlegend code {
-    min-width: 0;
-    margin-right: 0.3rem;
   }
-}
 
 /* A legend hoisted to the section, because several fields there share one vocabulary. */
-.optlegend.hoisted {
-  border-left: 2px solid var(--line);
-  padding-left: 0.7rem;
-  margin: 0.1rem 0 0.9rem;
-}
-
-.optlegend.hoisted .opt {
-  opacity: 1;
-}
-
 /* --------------------------------------------------------------- images, grouped */
 
 /* Search and the grouping toggle share a row; the toggle keeps its natural width so
@@ -1460,4 +1425,104 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   .card-fill {
     min-height: 22rem;
   }
+}
+
+/* ------------------------------------------------------------------ settings */
+
+/* Section list beside one pane, rather than eleven cards in a column. The nav is the
+   only permanent thing; the pane is whatever you are editing. */
+.settings-shell {
+  display: grid;
+  grid-template-columns: minmax(11rem, 14rem) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 0;
+}
+
+.settings-nav .nav-link {
+  padding-block: 0.35rem;
+}
+
+.settings-note {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--tblr-border-color);
+  font-size: 0.82rem;
+}
+
+/* Only the active pane exists on screen. Not `visibility`, so hidden panes cost no
+   layout -- but they stay in the DOM, which is what keeps their inputs in the form and
+   lets Save commit every section at once exactly as it always has. */
+.settings-pane {
+  display: none;
+}
+
+.settings-pane.active {
+  display: block;
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.pane-title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* The save bar belongs to the form, and is always reachable. */
+.scanbar.sticky-save {
+  position: sticky;
+  bottom: 0;
+  background: var(--tblr-body-bg);
+  border-top: 1px solid var(--tblr-border-color);
+  padding-block: 0.75rem;
+  margin-top: 1.5rem;
+  z-index: 2;
+}
+
+@media (max-width: 991.98px) {
+  /* The section list becomes a scrolling strip of pills above the pane. */
+  .settings-shell {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .settings-nav {
+    position: static;
+  }
+
+  .settings-nav .nav {
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0.35rem;
+  }
+
+  .settings-nav .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-nav .nav-link {
+    white-space: nowrap;
+  }
+
+  .settings-note {
+    display: none;
+  }
+}
+
+.settings-panes {
+  min-width: 0;
 }

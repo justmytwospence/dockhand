@@ -165,3 +165,40 @@ test('popovers are initialised, and re-initialised after every htmx swap', () =>
   const script = R.layout!.indexOf('htmx:afterSwap')
   assert.ok(script > R.layout!.indexOf('<body>'), 'popover script must be inside body')
 })
+
+test('every settings pane has a nav entry, and every nav entry a pane', () => {
+  // The nav and the panes are generated from one list, but the two non-form panes
+  // (Digest, Prompts) are written out by hand -- so a typo there would produce a nav
+  // item that activates nothing, with no error anywhere.
+  const navIds = [...R.settings!.matchAll(/data-pane="([^"]+)"/g)].map((m) => m[1]!)
+  const paneIds = [...R.settings!.matchAll(/id="pane-([^"]+)"/g)].map((m) => m[1]!)
+  assert.ok(navIds.length >= 11, `expected 11+ nav entries, got ${navIds.length}`)
+  assert.deepEqual(navIds.slice().sort(), paneIds.slice().sort())
+})
+
+test('the /about deep links still name real settings panes', () => {
+  // About links straight at sections (/settings#reading-the-changelog). Those are now
+  // pane ids activated by the hash, not scroll anchors -- same hrefs, different mechanism.
+  const targets = [...R.about!.matchAll(/href="\/settings#([^"]+)"/g)].map((m) => m[1]!)
+  assert.ok(targets.length >= 5)
+  for (const t of new Set(targets)) {
+    assert.ok(R.settings!.includes(`id="pane-${t}"`), `/about links at #${t}, which has no pane`)
+  }
+})
+
+test('every setting input stays inside the form, including on hidden panes', () => {
+  // Panes are display:none, not detached. That is what lets one Save commit all nine
+  // sections at once, exactly as when they were stacked cards.
+  const html = R.settings!
+  const open = html.indexOf('<form hx-post="/settings"')
+  const close = html.indexOf('</form>', open)
+  for (const m of html.matchAll(/name="(defaults\.[a-z]+|claude\.[a-z_.]+|prs\.[a-z_]+)"/g)) {
+    assert.ok(m.index! > open && m.index! < close, `${m[1]} escaped the settings form`)
+  }
+})
+
+test('the save bar is inside the form and knows which panes it applies to', () => {
+  assert.match(R.settings!, /class="scanbar sticky-save"/)
+  assert.match(R.settings!, /data-form="1"/)
+  assert.match(R.settings!, /data-form="0"/)
+})
