@@ -48,7 +48,17 @@ const PROPOSE_CHANGES = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_image', 'set_env', 'remove_env', 'rename_env', 'set_label', 'remove_label'],
+              enum: [
+                'set_image',
+                'set_env',
+                'remove_env',
+                'rename_env',
+                'set_label',
+                'remove_label',
+                'set_path',
+                'remove_path',
+                'rename_path',
+              ],
             },
             image: { type: 'string', description: 'set_image: the full new image reference.' },
             key: { type: 'string', description: 'The environment variable or label name.' },
@@ -63,6 +73,17 @@ const PROPOSE_CHANGES = {
               type: 'string',
               description:
                 'Which service to change. Omit for the service being updated. Only services you were told you may change are accepted.',
+            },
+            file: {
+              type: 'string',
+              description:
+                'Repo-relative YAML file to change. Omit for this service\'s compose file. Only files inside the boundary you were given are accepted.',
+            },
+            path: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'set_path / remove_path / rename_path: the key path in the document, outermost first. The parent must already exist; structure is never invented.',
             },
           },
           required: ['op'],
@@ -174,26 +195,42 @@ function normalise(raw: Record<string, unknown>): Proposal {
     const key = typeof o.key === 'string' ? o.key : ''
     const value = typeof o.value === 'string' ? o.value : ''
     const service = typeof o.service === 'string' && o.service ? { service: o.service } : {}
+    const file = typeof o.file === 'string' && o.file ? { file: o.file } : {}
     switch (o.op) {
       case 'set_image':
-        if (typeof o.image === 'string' && o.image) ops.push({ ...service, op: 'set_image', image: o.image })
+        if (typeof o.image === 'string' && o.image) ops.push({ ...service, ...file, op: 'set_image', image: o.image })
         break
       case 'set_env':
-        if (key && value) ops.push({ ...service, op: 'set_env', key, value })
+        if (key && value) ops.push({ ...service, ...file, op: 'set_env', key, value })
         break
       case 'remove_env':
-        if (key) ops.push({ ...service, op: 'remove_env', key })
+        if (key) ops.push({ ...service, ...file, op: 'remove_env', key })
         break
       case 'rename_env':
         if (typeof o.from === 'string' && typeof o.to === 'string' && o.from && o.to) {
-          ops.push({ ...service, op: 'rename_env', from: o.from, to: o.to })
+          ops.push({ ...service, ...file, op: 'rename_env', from: o.from, to: o.to })
         }
         break
       case 'set_label':
-        if (key && value) ops.push({ ...service, op: 'set_label', key, value })
+        if (key && value) ops.push({ ...service, ...file, op: 'set_label', key, value })
         break
       case 'remove_label':
-        if (key) ops.push({ ...service, op: 'remove_label', key })
+        if (key) ops.push({ ...service, ...file, op: 'remove_label', key })
+        break
+      case 'set_path':
+        if (Array.isArray(o.path) && o.path.length && value) {
+          ops.push({ ...file, op: 'set_path', path: o.path as string[], value })
+        }
+        break
+      case 'remove_path':
+        if (Array.isArray(o.path) && o.path.length) {
+          ops.push({ ...file, op: 'remove_path', path: o.path as string[] })
+        }
+        break
+      case 'rename_path':
+        if (Array.isArray(o.path) && o.path.length && typeof o.to === 'string' && o.to) {
+          ops.push({ ...file, op: 'rename_path', path: o.path as string[], to: o.to })
+        }
         break
     }
   }

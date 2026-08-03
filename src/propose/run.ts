@@ -11,7 +11,8 @@ import { resolveSource } from '../resolver/index.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
 import { applyOps } from './apply.ts'
-import { scopeFor, allowedServices, describeScope } from './scope.ts'
+import { allowedServices } from './scope.ts'
+import { scopeFor, boundaryFor, canWrite, describeBoundary } from './paths.ts'
 import { proposalHunks } from './hunks.ts'
 import { propose, type Proposal } from './propose.ts'
 import { gatherContext } from './context.ts'
@@ -178,11 +179,20 @@ async function draftFor(c: Candidate): Promise<boolean> {
     const siblings = services
       .filter((s) => s.stack === c.stack && s.composeFile === c.composeFile)
       .map((s) => s.service)
-    const allowed = allowedServices(scope, c.service, siblings)
+    const allowed = allowedServices(
+      scope === 'compose-file' || scope === 'compose-dir' || scope === 'repo'
+        ? 'compose-file'
+        : scope === 'none'
+          ? 'none'
+          : 'service',
+      c.service,
+      siblings,
+    )
+    const boundary = boundaryFor(scope, c.composeFile)
 
     const result = await propose({
       context: await gatherContext(before, c.service),
-      scope: describeScope(scope, c.service, allowed),
+      scope: describeBoundary(boundary, c.service, allowed),
       image: c.image,
       fromTag: c.fromTag,
       toTag: c.toTag,
@@ -214,7 +224,61 @@ async function draftFor(c: Candidate): Promise<boolean> {
       return true
     }
 
-    const applied = applyOps(before, c.service, result.ops, allowed)
+    // Ops are grouped by the file they name; anything unnamed edits the compose file.
+    // Every target is checked against the boundary before a byte is written, so the
+    // permission is enforced here rather than trusted from the model's output.
+    const byFile = new Map<string, typeof result.ops>()
+    for (const op of result.ops) {
+      const file = op.file ?? c.composeFile
+      const verdict = canWrite(file, boundary, env.selfStack)
+      if (!verdict.ok) {
+        record(c, result, verdict.reason, [])
+        await comment(
+          c.number,
+          `dockhand drafted config changes but refused to apply them: **${verdict.reason}**\n\n` +
+            renderComment(result, [], null),
+        )
+        logEvent({
+          level: 'warn',
+          kind: 'pr',
+          stack: c.stack,
+          service: c.service,
+          message: `#${c.number}: proposal refused`,
+          detail: verdict.reason,
+        })
+        return false
+      }
+      byFile.set(file, [...(byFile.get(file) ?? []), op])
+    }
+
+    const originals = new Map<string, string>()
+    const results = new Map<string, string>()
+    const allChanged: string[] = []
+    let failure: string | null = null
+
+    for (const [file, ops] of byFile) {
+      const abs2 = join(repoDir, file)
+      let text: string
+      try {
+        text = readFileSync(abs2, 'utf8')
+      } catch {
+        failure = `${file} does not exist`
+        break
+      }
+      originals.set(file, text)
+      const step = applyOps(text, c.service, ops, allowed)
+      if (!step.ok) {
+        failure = step.reason
+        break
+      }
+      results.set(file, step.text)
+      allChanged.push(...step.changed.map((x) => (byFile.size > 1 ? `${file}: ${x}` : x)))
+    }
+
+    const applied = failure
+      ? ({ ok: false, reason: failure } as const)
+      : ({ ok: true, text: results.get(c.composeFile) ?? before, changed: allChanged } as const)
+
     if (!applied.ok) {
       // A refused proposal must be visible: silence would look like "nothing to do".
       record(c, result, applied.reason, [])
@@ -234,10 +298,10 @@ async function draftFor(c: Candidate): Promise<boolean> {
       return false
     }
 
-    writeFileSync(abs, applied.text)
+    for (const [file, text] of results) writeFileSync(join(repoDir, file), text)
     const gate = await composeAccepts(repoDir, c.composeFile)
     if (!gate.ok) {
-      writeFileSync(abs, before)
+      for (const [file, text] of originals) writeFileSync(join(repoDir, file), text)
       record(c, result, gate.reason, [])
       await comment(c.number, `dockhand's drafted changes did not validate: **${gate.reason}**`)
       return false
@@ -267,7 +331,13 @@ async function draftFor(c: Candidate): Promise<boolean> {
         c.prId,
       )
     })()
-    record(c, result, null, applied.changed, proposalHunks(before, applied.text, c.composeFile))
+    record(
+      c,
+      result,
+      null,
+      applied.changed,
+      [...results].flatMap(([file, text]) => proposalHunks(originals.get(file) ?? '', text, file)),
+    )
 
     const [owner, repo] = env.githubRepo.split('/') as [string, string]
     await gh()

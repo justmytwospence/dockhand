@@ -16,13 +16,19 @@ import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument, type Documen
  * Every op may name the service it targets. Absent means the service being updated,
  * which is the only one reachable at the default scope.
  */
-export type Op = { service?: string } & (
+export type Op = { service?: string; file?: string } & (
   | { op: 'set_image'; image: string }
   | { op: 'set_env'; key: string; value: string }
   | { op: 'remove_env'; key: string }
   | { op: 'rename_env'; from: string; to: string }
   | { op: 'set_label'; key: string; value: string }
   | { op: 'remove_label'; key: string }
+  // Path operations address any YAML document, not just compose. Same technique --
+  // locate the node, splice its bytes, verify by deep-comparing against the ops applied
+  // to the parsed object -- which was never compose-specific, only its callers were.
+  | { op: 'set_path'; path: (string | number)[]; value: string }
+  | { op: 'remove_path'; path: (string | number)[] }
+  | { op: 'rename_path'; path: (string | number)[]; to: string }
 )
 
 export type ApplyOutcome =
@@ -50,10 +56,13 @@ export function applyOps(
 
   for (const op of ops) {
     const target = op.service ?? service
+    // Path operations address a document directly and carry no service; their boundary
+    // is the file, checked before this function is reached.
+    const isPathOp = op.op === 'set_path' || op.op === 'remove_path' || op.op === 'rename_path'
     // Scope is enforced here rather than trusted from the prompt: an op naming a
     // service outside the permitted set is refused by name, whatever the model was
     // told it could do.
-    if (!allowed.includes(target)) {
+    if (!isPathOp && !allowed.includes(target)) {
       return {
         ok: false,
         reason: `this proposal may not change "${target}" — permitted: ${allowed.join(', ')}`,
@@ -89,12 +98,29 @@ function describeOp(op: Op): string {
       return `label ${op.key}`
     case 'remove_label':
       return `label ${op.key} removed`
+    case 'set_path':
+      return `${op.path.join('.')} → ${op.value}`
+    case 'remove_path':
+      return `${op.path.join('.')} removed`
+    case 'rename_path':
+      return `${op.path.join('.')} → ${op.to}`
   }
 }
 
 function applyOne(text: string, service: string, op: Op): ApplyOutcome {
   const doc = parseDocument(text, { keepSourceTokens: true })
   if (doc.errors.length > 0) return { ok: false, reason: `file does not parse: ${doc.errors[0]!.message}` }
+
+  // Path operations address the document root and are valid in any YAML file, so the
+  // compose shape is only required by the operations that assume it.
+  switch (op.op) {
+    case 'set_path':
+      return setPath(doc, text, op.path, op.value)
+    case 'remove_path':
+      return removePath(doc, text, op.path)
+    case 'rename_path':
+      return renamePath(doc, text, op.path, op.to)
+  }
 
   const svc = doc.getIn(['services', service])
   if (!svc || !isMap(svc)) return { ok: false, reason: `no service "${service}" in this file` }
@@ -113,6 +139,70 @@ function applyOne(text: string, service: string, op: Op): ApplyOutcome {
     case 'rename_env':
       return renameEnv(doc, text, service, op.from, op.to)
   }
+}
+
+/**
+ * Set a value at an arbitrary path, creating the final key when the parent exists.
+ *
+ * A missing parent is refused rather than conjured: inventing intermediate structure is
+ * how a plausible-looking edit ends up in the wrong place in someone's config.
+ */
+function setPath(
+  doc: Document,
+  text: string,
+  path: (string | number)[],
+  value: string,
+): ApplyOutcome {
+  if (path.length === 0) return { ok: false, reason: 'empty path' }
+  const existing = doc.getIn(path, true)
+  if (existing && isScalar(existing) && existing.range) {
+    return replaceScalar(doc, text, path, value)
+  }
+  const parentPath = path.slice(0, -1)
+  const key = path[path.length - 1]
+  const parent = parentPath.length === 0 ? doc.contents : doc.getIn(parentPath)
+  if (!parent || !isMap(parent)) {
+    return { ok: false, reason: `no mapping at ${parentPath.join('.') || '(root)'} to add ${String(key)} to` }
+  }
+  return insertAfterLast(text, parent, `${String(key)}: ${value}`)
+}
+
+function removePath(doc: Document, text: string, path: (string | number)[]): ApplyOutcome {
+  if (path.length === 0) return { ok: false, reason: 'empty path' }
+  const parentPath = path.slice(0, -1)
+  const key = path[path.length - 1]
+  const parent = parentPath.length === 0 ? doc.contents : doc.getIn(parentPath)
+  if (!parent || !isMap(parent)) {
+    return { ok: false, reason: `no mapping at ${parentPath.join('.') || '(root)'}` }
+  }
+  const pair = (parent as { items: { key?: unknown }[] }).items.find(
+    (p) => isScalar(p.key) && p.key.value === key,
+  )
+  if (!pair) return { ok: false, reason: `no entry at ${path.join('.')}` }
+  return deleteLinesFor(text, pair as { key?: unknown; value?: unknown })
+}
+
+/** Rename a key while keeping its value's exact bytes, at any depth. */
+function renamePath(
+  doc: Document,
+  text: string,
+  path: (string | number)[],
+  to: string,
+): ApplyOutcome {
+  if (path.length === 0) return { ok: false, reason: 'empty path' }
+  const parentPath = path.slice(0, -1)
+  const key = path[path.length - 1]
+  const parent = parentPath.length === 0 ? doc.contents : doc.getIn(parentPath)
+  if (!parent || !isMap(parent)) {
+    return { ok: false, reason: `no mapping at ${parentPath.join('.') || '(root)'}` }
+  }
+  const pair = (parent as { items: { key?: unknown }[] }).items.find(
+    (p) => isScalar(p.key) && p.key.value === key,
+  )
+  if (!pair) return { ok: false, reason: `no entry at ${path.join('.')}` }
+  const k = pair.key as { range?: [number, number, number] }
+  if (!k.range) return { ok: false, reason: 'key has no source range' }
+  return { ok: true, text: text.slice(0, k.range[0]) + to + text.slice(k.range[1]), changed: [] }
 }
 
 /** Overwrite a scalar's bytes, leaving quoting style and everything around it alone. */
@@ -320,6 +410,13 @@ function verify(before: string, after: string, service: string, ops: Op[]): Appl
   const expected = parseDocument(before).toJS() as Record<string, any>
 
   for (const op of ops) {
+    // Path operations address the document root, not a service, so they are checked
+    // against the same parsed object by walking their own path.
+    if (op.op === 'set_path' || op.op === 'remove_path' || op.op === 'rename_path') {
+      const applied = applyPathToObject(expected, op)
+      if (!applied.ok) return applied
+      continue
+    }
     // Resolved per op, not once: an op may name a sibling service, and applying it to
     // the primary would make the comparison disagree with a correct edit.
     const svc = expected?.services?.[op.service ?? service]
@@ -398,6 +495,35 @@ function scalarValue(raw: string): unknown {
   } catch {
     return raw
   }
+}
+
+/**
+ * Mirror a path operation onto the parsed object, so the splice can be checked against
+ * it. Same walk the applier does, expressed over plain values.
+ */
+function applyPathToObject(
+  root: Record<string, any>,
+  op: Extract<Op, { op: 'set_path' | 'remove_path' | 'rename_path' }>,
+): ApplyOutcome {
+  const parentPath = op.path.slice(0, -1)
+  const key = op.path[op.path.length - 1] as string
+  let parent: any = root
+  for (const seg of parentPath) {
+    parent = parent?.[seg as never]
+    if (parent === undefined || parent === null) {
+      return { ok: false, reason: `no mapping at ${parentPath.join('.')}` }
+    }
+  }
+  if (typeof parent !== 'object') {
+    return { ok: false, reason: `${parentPath.join('.')} is not a mapping` }
+  }
+  if (op.op === 'set_path') parent[key] = scalarValue(op.value)
+  else if (op.op === 'remove_path') delete parent[key]
+  else {
+    parent[op.to] = parent[key]
+    delete parent[key]
+  }
+  return { ok: true, text: '', changed: [] }
 }
 
 /** Key order is not meaningful in YAML mappings; compare content, not ordering. */
