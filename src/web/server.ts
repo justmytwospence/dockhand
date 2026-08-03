@@ -23,11 +23,12 @@ import {
 import { DiffView } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
-import { SettingsPage, SettingsForm, RawPolicy , PromptEditorFragment } from './views/settings.tsx'
+import { SettingsPage, SettingsForm, RawPolicy, DigestPreview, PromptEditorFragment } from './views/settings.tsx'
 import { AboutPage } from './views/about.tsx'
 import { applySettings, SETTINGS } from '../settings.ts'
 import { listModels } from '../analyze/models.ts'
-import { rescheduleScan } from '../scheduler.ts'
+import { flush as flushDigest, pending as pendingDigest, render as renderDigest } from '../notify/digest.ts'
+import { rescheduleScan, rescheduleDigest } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
 import { SystemPage, type SpendRow, type DeployRow, type ModelTierRow } from './views/system.tsx'
@@ -241,6 +242,7 @@ export function createApp(): Hono {
     const { policy } = loadPolicy()
     const filter = c.req.query('filter') ?? 'all'
     const q = (c.req.query('q') ?? '').trim()
+    const grouped = c.req.query('group') === 'stack'
     const statusMap = statuses()
     const shown = filterServices(
       scanRepo(env.repoDir, policy.exclude_stacks),
@@ -250,9 +252,11 @@ export function createApp(): Hono {
     )
     // htmx requests want just the table; a normal navigation wants the whole page.
     if (c.req.header('hx-request')) {
-      return c.html(ImagesTable({ services: shown, statusMap }) as string)
+      return c.html(ImagesTable({ services: shown, statusMap, grouped }) as string)
     }
-    return c.html(ImagesPage({ missing: missing(), services: shown, filter, q, statusMap }) as string)
+    return c.html(
+      ImagesPage({ missing: missing(), services: shown, filter, q, grouped, statusMap }) as string,
+    )
   })
 
   /** Re-check one service, so a label edit can be confirmed without a 150s sweep. */
@@ -260,12 +264,17 @@ export function createApp(): Hono {
     const { policy } = loadPolicy()
     const stack = c.req.param('stack')
     const service = c.req.param('service')
+    // The row swaps itself in place, so it has to be rendered in the same shape the
+    // table around it is using -- grouped rows carry no stack prefix.
+    const grouped = c.req.query('group') === 'stack'
     const svc = scanRepo(env.repoDir, policy.exclude_stacks).find(
       (s) => s.stack === stack && s.service === service,
     )
     if (!svc) return c.html('<tr><td colspan="6" class="sub">no such service</td></tr>', 404)
     if (svc.watched) await scanOne(svc, policy)
-    return c.html(ImageRow({ svc, status: statuses().get(`${stack}/${service}`) }) as string)
+    return c.html(
+      ImageRow({ svc, status: statuses().get(`${stack}/${service}`), grouped }) as string,
+    )
   })
 
   app.get('/activity', (c) => {
@@ -337,8 +346,32 @@ export function createApp(): Hono {
     const result = applySettings(changes)
     // A schedule change should not wait for the old schedule to fire before applying.
     if (result.ok && result.applied.includes('scan.cron')) rescheduleScan()
+    if (result.ok && result.applied.includes('notify.cron')) rescheduleDigest()
     const { policy } = loadPolicy()
     return c.html(SettingsForm({ policy, models: await listModels(), result }) as string)
+  })
+
+  /**
+   * What the next digest would say, and a way to send it now.
+   *
+   * A batched notification is invisible until it fires, which makes it hard to trust and
+   * hard to tune -- so the exact message is renderable on demand, by the same code that
+   * sends it.
+   */
+  app.get('/settings/digest', (c) => {
+    const { policy } = loadPolicy()
+    return c.html(
+      DigestPreview({ rows: pendingDigest(), message: renderDigest(pendingDigest()), policy }) as string,
+    )
+  })
+
+  app.post('/settings/digest/send', async (c) => {
+    const r = await flushDigest('manual')
+    return c.html(
+      r.sent > 0
+        ? `<span class="sub">sent ${r.sent} item(s)</span>`
+        : `<span class="sub">${r.skipped ?? 'nothing to send'}</span>`,
+    )
   })
 
   /** The mental model. Reads the live policy so it describes this deployment. */

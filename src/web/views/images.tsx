@@ -25,9 +25,10 @@ export const ImagesPage: FC<{
   services: ScannedService[]
   filter: string
   q: string
+  grouped: boolean
   statusMap: Map<string, StatusRow>
   missing?: MissingSetting[]
-}> = ({ services, filter, q, statusMap, missing }) => (
+}> = ({ services, filter, q, grouped, statusMap, missing }) => (
   <Layout title="Images" path="/images" missing={missing}>
     <h2>Image inventory</h2>
     <p class="sub">
@@ -53,53 +54,114 @@ export const ImagesPage: FC<{
           </label>
         ))}
       </nav>
-      <input
-        type="search"
-        name="q"
-        value={q}
-        placeholder="filter by stack, service or image…"
-        hx-get="/images"
-        hx-target="#images-table"
-        hx-include="closest form"
-        hx-trigger="input changed delay:250ms, search"
-      />
+      <div class="imgtools">
+        <input
+          type="search"
+          name="q"
+          value={q}
+          placeholder="filter by stack, service or image…"
+          hx-get="/images"
+          hx-target="#images-table"
+          hx-include="closest form"
+          hx-trigger="input changed delay:250ms, search"
+        />
+        {/* A stack is a compose file, which is the unit everything else here is
+            addressed by -- deploys, labels, scope. Grouping by it is off by default
+            because the flat list is what you want when searching. */}
+        <label class={`toggle${grouped ? ' on' : ''}`}>
+          <input
+            type="checkbox"
+            name="group"
+            value="stack"
+            checked={grouped}
+            hx-get="/images"
+            hx-target="#images-table"
+            hx-include="closest form"
+          />
+          Group by stack
+        </label>
+      </div>
     </form>
 
     <div id="images-table">
-      <ImagesTable services={services} statusMap={statusMap} />
+      <ImagesTable services={services} statusMap={statusMap} grouped={grouped} />
     </div>
   </Layout>
+)
+
+const HEAD = (
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Image</th>
+      <th>Tag</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
 )
 
 export const ImagesTable: FC<{
   services: ScannedService[]
   statusMap: Map<string, StatusRow>
-}> = ({ services, statusMap }) =>
-  services.length === 0 ? (
-    <Empty>Nothing matches this filter.</Empty>
-  ) : (
+  grouped?: boolean
+}> = ({ services, statusMap, grouped }) => {
+  if (services.length === 0) return <Empty>Nothing matches this filter.</Empty>
+
+  if (!grouped) {
+    return (
+      <Table>
+        {HEAD}
+        <tbody>
+          {services.map((s) => (
+            <ImageRow svc={s} status={statusMap.get(`${s.stack}/${s.service}`)} />
+          ))}
+        </tbody>
+      </Table>
+    )
+  }
+
+  // One table with a tbody per stack rather than a table per stack: the columns then
+  // line up down the whole page, which is most of the point of grouping in the first
+  // place. Insertion order is the scan's, which is already sorted by compose path.
+  const stacks = new Map<string, ScannedService[]>()
+  for (const s of services) stacks.set(s.stack, [...(stacks.get(s.stack) ?? []), s])
+
+  return (
     <Table>
-      <thead>
-        <tr>
-          <th>Service</th>
-          <th>Image</th>
-          <th>Tag</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {services.map((s) => (
-          <ImageRow svc={s} status={statusMap.get(`${s.stack}/${s.service}`)} />
-        ))}
-      </tbody>
+      {HEAD}
+      {[...stacks].map(([stack, rows]) => (
+        <tbody class="stackgroup">
+          <tr class="stackhead">
+            <th colspan={5}>
+              {stack}
+              <span class="count">{rows.length}</span>
+              {(() => {
+                const watched = rows.filter((r) => r.watched).length
+                return watched < rows.length ? (
+                  <span class="sub"> {watched} watched</span>
+                ) : null
+              })()}
+            </th>
+          </tr>
+          {rows.map((s) => (
+            <ImageRow svc={s} status={statusMap.get(`${s.stack}/${s.service}`)} grouped />
+          ))}
+        </tbody>
+      ))}
     </Table>
   )
+}
 
-export const ImageRow: FC<{ svc: ScannedService; status?: StatusRow }> = ({ svc, status }) => (
+export const ImageRow: FC<{ svc: ScannedService; status?: StatusRow; grouped?: boolean }> = ({
+  svc,
+  status,
+  grouped,
+}) => (
   <tr id={`img-${svc.stack}-${svc.service}`}>
     <td class="nowrap">
-      <span class="svc-stack">{svc.stack}</span>
+      {/* Under a stack heading the prefix on every row is just repetition. */}
+      {!grouped && <span class="svc-stack">{svc.stack}</span>}
       <span class="svc-name">{svc.service}</span>
     </td>
     <td class="mono">
@@ -153,7 +215,7 @@ export const ImageRow: FC<{ svc: ScannedService; status?: StatusRow }> = ({ svc,
       {svc.watched ? (
         <button
           class="linkish"
-          hx-post={`/images/${svc.stack}/${svc.service}/check`}
+          hx-post={`/images/${svc.stack}/${svc.service}/check${grouped ? '?group=stack' : ''}`}
           hx-target="closest tr"
           hx-swap="outerHTML"
           hx-disabled-elt="this"
