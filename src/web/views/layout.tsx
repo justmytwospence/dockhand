@@ -34,6 +34,17 @@ export const THEME_SCRIPT = `(function(){
   window.dockhandSetTheme = function(v){ localStorage.setItem('dockhand-theme', v); apply(); };
 })()`
 
+/**
+ * Register the worker, after load so it never competes with the page it is caching.
+ *
+ * Failure is silent on purpose: a worker that will not register costs nothing here --
+ * it caches static assets and does not carry a feature -- and an error banner about it
+ * would be noise on a page that is already working.
+ */
+const SW_SCRIPT = `if ('serviceWorker' in navigator) {
+  addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}) })
+}`
+
 export const Layout: FC<
   PropsWithChildren<{
     title: string
@@ -64,10 +75,21 @@ export const Layout: FC<
       <link rel="stylesheet" href="/static/style.css" />
       <script src="/static/htmx.min.js" defer></script>
       <script src="/static/tabler.min.js" defer></script>
-      <link
-        rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%A2%3C/text%3E%3C/svg%3E"
-      />
+
+      {/* crossorigin is load-bearing behind forward-auth. Browsers fetch a manifest with
+          credentials omitted by default; Authelia answers that with a 302 to another
+          origin, the manifest fails to parse, and the app is silently not installable --
+          while still showing 200 in the network tab. */}
+      <link rel="manifest" href="/static/manifest.webmanifest" crossorigin="use-credentials" />
+      {/* Rewritten by the theme resolver when an explicit choice is made; these two are
+          the auto case, which the resolver leaves alone. */}
+      <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)" />
+      <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-title" content="dockhand" />
+      <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+      <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+      <script dangerouslySetInnerHTML={{ __html: SW_SCRIPT }} defer></script>
     </head>
     <body>
       <div class="page">

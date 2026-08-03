@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>dockhand</title>
+  <!--
+    The container glyph from the Images nav item, on the accent green.
+
+    Sized to work as `purpose: maskable` as well as `any`. Android crops a maskable icon
+    to whatever shape the launcher uses, keeping only the inner 80%, so the glyph is
+    260px on a 512px canvas, centred, and survives a circle mask with room to spare.
+
+    Full bleed rather than a rounded rect: the platform applies its own corner radius,
+    and baking one in gets it applied twice.
+  -->
+  <rect width="512" height="512" fill="#2f6f57"/>
+  <g transform="translate(126 126) scale(10.833)"
+     fill="none" stroke="#ffffff" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/>
+    <path d="M12 12l8 -4.5"/>
+    <path d="M12 12v9"/>
+    <path d="M12 12l-8 -4.5"/>
+  </g>
+</svg>

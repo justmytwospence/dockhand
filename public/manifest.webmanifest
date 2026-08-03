@@ -1,0 +1,28 @@
+{
+  "name": "dockhand",
+  "short_name": "dockhand",
+  "description": "Image update bot: registry polling, GitHub pull requests, changelog analysis, and deploys.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#fbfbfa",
+  "theme_color": "#fbfbfa",
+  "icons": [
+    { "src": "/static/icon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/static/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/static/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    {
+      "src": "/static/icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Images", "url": "/images" },
+    { "name": "Activity", "url": "/activity" },
+    { "name": "Settings", "url": "/settings" }
+  ]
+}

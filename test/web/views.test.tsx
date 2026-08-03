@@ -126,3 +126,23 @@ test('the theme is resolved before anything paints', () => {
 test('the viewport opts into the safe-area insets the mobile bar needs', () => {
   assert.match(R.layout!, /viewport-fit=cover/)
 })
+
+test('the manifest is fetched with credentials, or it silently does not install', () => {
+  // Browsers omit credentials for a manifest by default. Behind forward-auth that gets
+  // a 302 to another origin, the manifest fails to parse, and the only symptom is that
+  // the install prompt never appears -- the network tab still shows 200.
+  assert.match(R.layout!, /<link rel="manifest" href="\/static\/manifest\.webmanifest" crossorigin="use-credentials"/)
+})
+
+test('the PWA head carries what each platform actually needs', () => {
+  assert.match(R.layout!, /rel="apple-touch-icon" href="\/static\/apple-touch-icon\.png"/)
+  assert.match(R.layout!, /<link rel="icon" href="\/static\/icon\.svg"/)
+  // Two theme-colors, one per scheme, for the auto case.
+  assert.equal((R.layout!.match(/name="theme-color"/g) ?? []).length, 2)
+})
+
+test('the service worker is registered from the root, which is where its scope comes from', () => {
+  // A worker served from /static/ can only control /static/ -- it could not see the
+  // navigations it exists to leave alone.
+  assert.match(R.layout!, /navigator\.serviceWorker\.register\('\/sw\.js'\)/)
+})
