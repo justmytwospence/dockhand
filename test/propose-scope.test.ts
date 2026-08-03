@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { scopeFor, allowedServices, describeScope } from '../src/propose/scope.ts'
+import { scopeFor, allowedServices, describeBoundary, boundaryFor } from '../src/propose/paths.ts'
 import { applyOps } from '../src/propose/apply.ts'
 
 const FILE = `services:
@@ -22,9 +22,8 @@ test('unset means the narrowest useful scope, not the widest', () => {
 
 test('a typo narrows rather than widens', () => {
   // Granting reach on an unrecognised value is the one direction this must never fail.
-  assert.equal(scopeFor('compose-directory'), 'service')
-  assert.equal(scopeFor('any'), 'service')
   assert.equal(scopeFor('ANYTHING'), 'service')
+  assert.equal(scopeFor('everything'), 'service')
 })
 
 test('off is still accepted as the original spelling of none', () => {
@@ -36,6 +35,9 @@ test('allowedServices matches the ladder', () => {
   assert.deepEqual(allowedServices('none', 'app', ['app', 'sidecar']), [])
   assert.deepEqual(allowedServices('service', 'app', ['app', 'sidecar']), ['app'])
   assert.deepEqual(allowedServices('compose-file', 'app', ['app', 'sidecar']), ['app', 'sidecar'])
+  // Every wider rung permits the whole compose file too.
+  assert.deepEqual(allowedServices('compose-dir', 'app', ['app', 'sidecar']), ['app', 'sidecar'])
+  assert.deepEqual(allowedServices('repo', 'app', ['app', 'sidecar']), ['app', 'sidecar'])
 })
 
 test('at service scope a sibling edit is refused by name', () => {
@@ -96,9 +98,16 @@ test('a sibling change is labelled with the service it touched', () => {
 })
 
 test('the model is told exactly what apply.ts will enforce', () => {
-  const wide = describeScope('compose-file', 'app', ['app', 'sidecar'])
-  assert.match(wide, /app, sidecar/)
-  const narrow = describeScope('service', 'app', ['app'])
-  assert.match(narrow, /only the "app" service/)
-  assert.match(describeScope('none', 'app', []), /may not change anything/)
+  const bd = (s: Parameters<typeof boundaryFor>[0]) => boundaryFor(s, 'x/docker-compose.yaml')
+  assert.match(describeBoundary(bd('compose-file'), 'app', ['app', 'sidecar']), /app, sidecar/)
+  assert.match(describeBoundary(bd('service'), 'app', ['app']), /only the "app" service/)
+  assert.match(describeBoundary(bd('none'), 'app', []), /may not change anything/)
+})
+
+test('there is exactly one scopeFor, and it knows every rung', () => {
+  // There were briefly two, disagreeing: the stale one collapsed compose-dir and repo
+  // to service, so importing the wrong one silently narrowed the boundary.
+  assert.equal(scopeFor('compose-dir'), 'compose-dir')
+  assert.equal(scopeFor('repo'), 'repo')
+  assert.equal(scopeFor('any'), 'repo')
 })

@@ -87,6 +87,24 @@ export function isStructured(relPath: string): boolean {
   return /\.(ya?ml|json)$/i.test(relPath)
 }
 
+/**
+ * Which services a proposal may change.
+ *
+ * Separate from the file boundary because the two limits are independent and both
+ * apply: a wide file scope still only reaches the services its rung permits inside a
+ * compose file.
+ */
+export function allowedServices(
+  scope: ProposeScope,
+  primary: string,
+  siblings: string[],
+): string[] {
+  if (scope === 'none') return []
+  if (scope === 'service') return [primary]
+  // Every wider rung permits the whole compose file.
+  return siblings.includes(primary) ? siblings : [primary, ...siblings]
+}
+
 export interface Boundary {
   scope: ProposeScope
   /** Repo-relative directory the proposal may write within, or null for the whole repo. */

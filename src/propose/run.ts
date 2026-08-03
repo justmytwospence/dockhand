@@ -11,8 +11,7 @@ import { resolveSource } from '../resolver/index.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
 import { applyOps } from './apply.ts'
-import { allowedServices } from './scope.ts'
-import { scopeFor, boundaryFor, canWrite, describeBoundary } from './paths.ts'
+import { scopeFor, boundaryFor, canWrite, describeBoundary, allowedServices } from './paths.ts'
 import { proposalHunks } from './hunks.ts'
 import { propose, type Proposal } from './propose.ts'
 import { gatherContext } from './context.ts'
@@ -179,15 +178,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
     const siblings = services
       .filter((s) => s.stack === c.stack && s.composeFile === c.composeFile)
       .map((s) => s.service)
-    const allowed = allowedServices(
-      scope === 'compose-file' || scope === 'compose-dir' || scope === 'repo'
-        ? 'compose-file'
-        : scope === 'none'
-          ? 'none'
-          : 'service',
-      c.service,
-      siblings,
-    )
+    const allowed = allowedServices(scope, c.service, siblings)
     const boundary = boundaryFor(scope, c.composeFile)
 
     const result = await propose({
