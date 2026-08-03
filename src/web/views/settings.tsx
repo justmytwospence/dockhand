@@ -33,13 +33,18 @@ export const SettingsPage: FC<{
   result?: { ok: true; applied: string[]; commit: string | null } | { ok: false; errors: string[] }
   missing?: MissingSetting[]
 }> = ({ policy, models, prompts, result, missing }) => (
-  <Layout title="Settings" path="/settings" missing={missing}>
-    <h2>Settings</h2>
-    <p class="sub">
-      These are the contents of <code>policy.yaml</code>. Saving edits that file in place
-      and commits it, so every change is reviewable in <code>git log</code>.{' '}
-      <a href="/settings/raw">View the file &rarr;</a>
-    </p>
+  <Layout
+    title="Settings"
+    path="/settings"
+    missing={missing}
+    subtitle={
+      <>
+        These are the contents of <code>policy.yaml</code>. Saving edits that file in
+        place and commits it, so every change is reviewable in <code>git log</code>.{' '}
+        <a href="/settings/raw">View the file &rarr;</a>
+      </>
+    }
+  >
 
     <div class="rule compact">
       Sections follow the path an update takes. The model that ties them together is on{' '}
@@ -91,11 +96,11 @@ export const PromptEditorFragment: FC<{ state: PromptState }> = ({ state }) => (
         )}
       </div>
       <p class="sub">{PROMPTS[state.name].help}</p>
-      <textarea name="body" rows={16} spellcheck={false}>
+      <textarea name="body" rows={16} spellcheck={false} class="form-control">
         {state.body}
       </textarea>
       <div class="scanbar">
-        <button type="submit" hx-disabled-elt="this">
+        <button type="submit" class="btn btn-primary" hx-disabled-elt="this">
           Save prompt
         </button>
         {state.customised && (
@@ -154,9 +159,12 @@ export const SettingsForm: FC<{
       // collapses a legend that is literally the same object.
       const shared = sharedLegend(all)
       return (
-        <section id={slug(name)}>
-          <h2>{name}</h2>
-          <p class="sub">{blurb}</p>
+        <section id={slug(name)} class="card mb-3">
+          <div class="card-header d-block">
+            <h3 class="card-title mb-0">{name}</h3>
+            <p class="sub mb-0 mt-1">{blurb}</p>
+          </div>
+          <div class="card-body">
           {shared && (
             <p class="sub optlegend hoisted">
               {shared.options.map((o) => (
@@ -207,12 +215,13 @@ export const SettingsForm: FC<{
               </div>
             </details>
           )}
+          </div>
         </section>
       )
     })}
 
     <div class="scanbar sticky-save">
-      <button type="submit" hx-disabled-elt="this">
+      <button type="submit" class="btn btn-primary" hx-disabled-elt="this">
         Save changes
       </button>
       <span class="sub">Committed to the repository as one change.</span>
@@ -290,7 +299,7 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
   switch (def.kind) {
     case 'bool':
       return (
-        <select id={def.path} name={def.path}>
+        <select id={def.path} name={def.path} class="form-select">
           {['true', 'false'].map((o) => (
             <option value={o} selected={value === o}>
               {o === 'true' ? 'on' : 'off'}
@@ -300,7 +309,7 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
       )
     case 'enum':
       return (
-        <select id={def.path} name={def.path}>
+        <select id={def.path} name={def.path} class="form-select">
           {(def.options ?? []).map((o) => (
             <option value={o} selected={value === o}>
               {o}
@@ -314,7 +323,7 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
         <>
           {models.length > 0 && (
             <select
-              class="model-picker"
+              class="form-select model-picker"
               // Fills the text box below, which is what actually gets submitted --
               // so an id the API has not listed can still be typed in.
               oninput={`document.getElementById('${def.path}').value = this.value`}
@@ -327,7 +336,7 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
               ))}
             </select>
           )}
-          <input id={def.path} name={def.path} value={value} class="mono" />
+          <input id={def.path} name={def.path} value={value} class="form-control mono" />
         </>
       )
     case 'int':
@@ -338,11 +347,11 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
           name={def.path}
           value={value}
           inputmode="decimal"
-          class="mono narrow"
+          class="form-control mono narrow"
         />
       )
     default:
-      return <input id={def.path} name={def.path} value={value} class="mono" />
+      return <input id={def.path} name={def.path} value={value} class="form-control mono" />
   }
 }
 
@@ -412,6 +421,7 @@ export const DigestPreview: FC<{
         </div>
         <div class="scanbar">
           <button
+            class="btn"
             hx-post="/settings/digest/send"
             hx-target="#digest-send-status"
             hx-swap="innerHTML"

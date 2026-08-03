@@ -30,13 +30,12 @@ export const ImagesPage: FC<{
   statusMap: Map<string, StatusRow>
   missing?: MissingSetting[]
 }> = ({ services, filter, q, grouped, statusMap, missing }) => (
-  <Layout title="Images" path="/images" missing={missing}>
-    <h2>Image inventory</h2>
-    <p class="sub">
-      Read directly from the compose files in the working tree &mdash; never from running
-      container labels, so a label edit takes effect on the next scan without recreating
-      anything.
-    </p>
+  <Layout
+    title="Images"
+    path="/images"
+    missing={missing}
+    subtitle="Read from the compose files in the working tree — never from running container labels, so a label edit takes effect on the next scan without recreating anything."
+  >
 
     <form class="imgfilters" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
       {/* Tabler's select-group: the radio's own `checked` state drives the visual, so

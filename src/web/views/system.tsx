@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 import type { Policy } from '../../config.ts'
-import { Layout, Banner, Empty, Table, type MissingSetting } from './layout.tsx'
+import { Layout, Banner, Empty, Panel, Table, type MissingSetting } from './layout.tsx'
 import { env } from '../../config.ts'
 import type { ScanInfo } from './dashboard.tsx'
 
@@ -52,8 +52,7 @@ export const SystemPage: FC<{
   <Layout title="System" path="/system" missing={missing}>
     {policyError && <Banner kind="error">{policyError}</Banner>}
 
-    <h2>Configuration</h2>
-    <Table kv>
+    <Table title="Configuration" kv>
       <tbody>
         <tr>
           <th>version</th>
@@ -107,8 +106,7 @@ export const SystemPage: FC<{
       </tbody>
     </Table>
 
-    <h2>Last scan</h2>
-    <Table kv>
+    <Table title="Last scan" kv>
       <tbody>
         <tr>
           <th>ran</th>
@@ -131,9 +129,7 @@ export const SystemPage: FC<{
       </tbody>
     </Table>
 
-    <h2>Credentials</h2>
-    <p class="sub">Presence only &mdash; values are never read into the UI.</p>
-    <Table kv>
+    <Table title="Credentials" sub="Presence only — values are never read into the UI." kv>
       <tbody>
         <Cred name="GITHUB_TOKEN" set={!!env.githubToken} />
         <Cred name="ANTHROPIC_API_KEY" set={!!env.anthropicApiKey} />
@@ -152,23 +148,24 @@ export const SystemPage: FC<{
       </p>
     )}
 
-    <h2>Model-decided updates</h2>
     {!modelTier || modelTier.length === 0 ? (
-      <Empty>
+      <Panel title="Model-decided updates">
+        <p class="nothing mb-0">
         No decisions recorded. Label a service <code>dockhand.policy: model</code> and the
         model&rsquo;s judgement is recorded here on its next update &mdash; without acting
         on it, while the mode is <code>shadow</code>.
-      </Empty>
+        </p>
+      </Panel>
     ) : (
       <>
-        <p class="sub">
-          {(() => {
+        <Table
+          title="Model-decided updates"
+          sub={(() => {
             const n = modelTier.length
             const yes = modelTier.filter((m) => m.promote).length
             return `${yes} of ${n} recent decisions would have been treated as routine. The rest fell back to static policy, for the reason shown.`
           })()}
-        </p>
-        <Table>
+        >
           <thead>
             <tr>
               <th>Service</th>
@@ -206,14 +203,15 @@ export const SystemPage: FC<{
       </>
     )}
 
-    <h2>Recent deploys</h2>
     {!deploys || deploys.length === 0 ? (
-      <Empty>
-        Nothing deployed yet. Merged changes are synced into the checkout; whether they
-        are brought up automatically is the <code>deploy.mode</code> setting.
-      </Empty>
+      <Panel title="Recent deploys">
+        <p class="nothing mb-0">
+          Nothing deployed yet. Merged changes are synced into the checkout; whether they
+          are brought up automatically is the <code>deploy.mode</code> setting.
+        </p>
+      </Panel>
     ) : (
-      <Table>
+      <Table title="Recent deploys">
         <thead>
           <tr>
             <th>When</th>
@@ -248,12 +246,16 @@ export const SystemPage: FC<{
       </Table>
     )}
 
-    <h2>Model spend this month</h2>
     {!spend || spend.length === 0 ? (
-      <Empty>No model calls yet this month.</Empty>
+      <Panel title="Model spend this month">
+        <p class="nothing mb-0">No model calls yet this month.</p>
+      </Panel>
     ) : (
       <>
-        <Table>
+        <Table
+          title="Model spend this month"
+          sub="Cached input bills at a tenth of the normal rate, so a high percentage there is the cheap column, not a warning."
+        >
           <thead>
             <tr>
               <th>Model</th>
@@ -283,29 +285,26 @@ export const SystemPage: FC<{
             ))}
           </tbody>
         </Table>
-        <p class="sub">
-          Cached input bills at a tenth of the normal rate, so a high percentage there is
-          the cheap column, not a warning.
-        </p>
       </>
     )}
 
-    <h2>Auto-merge preview</h2>
-    <p class="sub">
-      What the merge engine would decide about every open pull request, right now,
-      evaluated by the code that does the merging rather than a description of it.
-    </p>
+    <Panel
+      title="Auto-merge preview"
+      sub="What the merge engine would decide about every open pull request, right now, evaluated by the code that does the merging rather than a description of it."
+    >
     <div id="merge-preview" hx-get="/merge/preview" hx-trigger="load" hx-swap="innerHTML">
-      <p class="sub">loading&hellip;</p>
+      <p class="sub mb-0">loading&hellip;</p>
     </div>
+    </Panel>
 
-    <h2>Budgets</h2>
     {budgets.length === 0 ? (
-      <Empty>
-        No budget counters yet &mdash; they populate once the registry poller and analyzer run.
-      </Empty>
+      <Panel title="Budgets">
+        <p class="nothing mb-0">
+          No budget counters yet &mdash; they populate once the registry poller and analyzer run.
+        </p>
+      </Panel>
     ) : (
-      <Table kv>
+      <Table title="Budgets" kv>
         <tbody>
           {budgets.map((b) => (
             <tr>

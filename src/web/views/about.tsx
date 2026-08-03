@@ -20,7 +20,12 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
   repo,
   missing,
 }) => (
-  <Layout title="About" path="/about" missing={missing}>
+  <Layout
+    title="About"
+    path="/about"
+    missing={missing}
+    subtitle="How this thing decides, in one page."
+  >
     <h2>What dockhand does</h2>
     <p class="sub">
       It reads the compose files in <code>{repo || 'your repo'}</code>, asks the registries

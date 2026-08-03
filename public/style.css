@@ -757,14 +757,14 @@ button[disabled] {
 
 /* ------------------------------------------------------------------ settings */
 
+/* The label/control/help grid. `.setting { display: contents }` is what puts all three
+   directly into this grid, which is what makes the label column line up down the whole
+   section -- Tabler has no equivalent, so this stays exactly as it was. The frame and
+   padding are gone: it now sits inside a card that provides both. */
 .settings {
   display: grid;
   gap: 0.1rem 1.25rem;
   grid-template-columns: minmax(11rem, 15rem) 1fr;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.9rem 1.1rem;
 }
 
 .setting {
@@ -803,29 +803,16 @@ button[disabled] {
   padding: 0.35rem 0;
 }
 
-select,
-.settings input {
-  font: inherit;
-  font-size: 0.88rem;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.3rem 0.5rem;
+/* Width only -- Tabler styles the controls themselves. Without a cap a form-control
+   stretches the full grid column, which on a wide screen is a 40rem text box for a
+   three-character number. */
+.settings .form-control,
+.settings .form-select {
+  max-width: 28rem;
 }
 
-select:focus,
-.settings input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.settings input {
-  min-width: 18rem;
-}
-
-.settings input.narrow {
-  min-width: 7rem;
+.settings .form-control.narrow {
+  max-width: 9rem;
 }
 
 .model-picker {

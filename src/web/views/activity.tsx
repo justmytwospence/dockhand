@@ -14,31 +14,43 @@ export const ActivityPage: FC<{
   repo: string
   missing?: MissingSetting[]
 }> = ({ rows, filter, repo, missing }) => (
-  <Layout title="Activity" path="/activity" missing={missing}>
-    <h2>Activity log</h2>
-    <p class="sub">Every recorded event, newest first.</p>
-
-    <nav class="filters">
-      <a href="/activity" class={filter.kind === 'all' && filter.level === 'all' ? 'active' : ''}>
-        All
-      </a>
-      {KINDS.map((k) => (
+  <Layout
+    title="Activity"
+    path="/activity"
+    missing={missing}
+    subtitle="Every recorded event, newest first."
+  >
+    <ul class="nav nav-pills filters mb-3">
+      <li class="nav-item">
         <a
-          href={`/activity?kind=${k}${filter.level !== 'all' ? `&level=${filter.level}` : ''}`}
-          class={filter.kind === k ? 'active' : ''}
-          style={`--k: var(--k-${k})`}
+          href="/activity"
+          class={`nav-link${filter.kind === 'all' && filter.level === 'all' ? ' active' : ''}`}
         >
-          <span class="kdot"></span>
-          {k}
+          All
         </a>
+      </li>
+      {KINDS.map((k) => (
+        <li class="nav-item">
+          {/* --k must stay on the element that contains the dot; the dot reads it. */}
+          <a
+            href={`/activity?kind=${k}${filter.level !== 'all' ? `&level=${filter.level}` : ''}`}
+            class={`nav-link${filter.kind === k ? ' active' : ''}`}
+            style={`--k: var(--k-${k})`}
+          >
+            <span class="kdot"></span>
+            {k}
+          </a>
+        </li>
       ))}
-      <a
-        href={`/activity?level=problems${filter.kind !== 'all' ? `&kind=${filter.kind}` : ''}`}
-        class={`problems ${filter.level === 'problems' ? 'active' : ''}`}
-      >
-        problems only
-      </a>
-    </nav>
+      <li class="nav-item ms-auto">
+        <a
+          href={`/activity?level=problems${filter.kind !== 'all' ? `&kind=${filter.kind}` : ''}`}
+          class={`nav-link problems${filter.level === 'problems' ? ' active' : ''}`}
+        >
+          problems only
+        </a>
+      </li>
+    </ul>
 
     <div id="activity-table">
       <ActivityTable rows={rows} repo={repo} />

@@ -110,26 +110,42 @@ export const Banner: FC<{ kind: 'warn' | 'error' | 'info'; children?: unknown }>
  * the card edge; `table-responsive` keeps wide content scrolling inside its own box
  * rather than the page.
  */
-export const Table: FC<PropsWithChildren<{ kv?: boolean }>> = ({ kv, children }) => (
+export const Table: FC<
+  PropsWithChildren<{
+    kv?: boolean
+    /** Renders inside the card, as its header. A heading floating above a card reads
+     *  as a caption for the whole page rather than a name for that panel. */
+    title?: string
+    sub?: unknown
+  }>
+> = ({ kv, title, sub, children }) => (
   <div class="card">
+    {title ? (
+      <div class="card-header d-block">
+        <h3 class="card-title mb-0">{title}</h3>
+        {sub ? <p class="sub mb-0 mt-1">{sub}</p> : null}
+      </div>
+    ) : null}
     <div class="table-responsive">
       <table class={`table card-table table-vcenter${kv ? ' kv' : ''}`}>{children}</table>
     </div>
   </div>
 )
 
-/** A titled panel. The heading moves inside the card rather than floating above it. */
-export const Panel: FC<PropsWithChildren<{ title: string; sub?: unknown }>> = ({
+/** A card with arbitrary content rather than a table. */
+export const Panel: FC<PropsWithChildren<{ title?: string; sub?: unknown }>> = ({
   title,
   sub,
   children,
 }) => (
   <div class="card">
-    <div class="card-header d-block">
-      <h3 class="card-title mb-0">{title}</h3>
-      {sub ? <p class="sub mb-0 mt-1">{sub}</p> : null}
-    </div>
-    {children}
+    {title ? (
+      <div class="card-header d-block">
+        <h3 class="card-title mb-0">{title}</h3>
+        {sub ? <p class="sub mb-0 mt-1">{sub}</p> : null}
+      </div>
+    ) : null}
+    <div class="card-body">{children}</div>
   </div>
 )
 
