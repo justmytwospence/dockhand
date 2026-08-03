@@ -25,12 +25,32 @@ test('the narrow rungs reach exactly one file', () => {
   assert.equal(canWrite('authelia/configuration.yml', b('compose-file'), 'dockhand').ok, false)
 })
 
-test('only YAML is editable; everything else is a note', () => {
-  for (const f of ['authelia/entrypoint.sh', 'authelia/Dockerfile', 'authelia/users.json']) {
+test('unstructured and JSON files are editable; only binaries are not', () => {
+  // Restricting this to YAML was wrong: the deep-compare never proved an edit was
+  // right, only that the applier did exactly what was named — and an exactly-once
+  // anchor gives that same guarantee with no parse at all.
+  for (const f of ['authelia/entrypoint.sh', 'authelia/Dockerfile', 'authelia/users.json', 'authelia/app.conf']) {
+    assert.equal(canWrite(f, b('compose-dir'), 'dockhand').ok, true, f)
+  }
+  for (const f of ['authelia/logo.png', 'authelia/data.sqlite3', 'authelia/fonts.woff2']) {
     const r = canWrite(f, b('compose-dir'), 'dockhand')
     assert.equal(r.ok, false, f)
-    assert.match(r.ok === false ? r.reason : '', /not a YAML file/)
+    assert.match(r.ok === false ? r.reason : '', /binary/)
   }
+})
+
+test('a binary hiding behind an innocent extension is caught by its content', () => {
+  const r = canWrite('authelia/notes.txt', b('compose-dir'), 'dockhand', 'text\0with a NUL')
+  assert.equal(r.ok, false)
+  assert.match(r.ok === false ? r.reason : '', /binary/)
+})
+
+test('path operations work on JSON, which the same parser already handles', () => {
+  const json = '{\n  "log": {\n    "level": "info"\n  }\n}\n'
+  const r = applyOps(json, 'x', [{ op: 'set_path', path: ['log', 'level'], value: '"debug"' }])
+  assert.ok(r.ok, r.ok ? '' : r.reason)
+  assert.ok(r.text.includes('"debug"'))
+  assert.equal(JSON.parse(r.text).log.level, 'debug')
 })
 
 test('no scope reaches its own guardrails or anything executable', () => {
@@ -111,4 +131,51 @@ test('the verifier catches a path splice that did more than asked', () => {
   const r = applyOps(CONFIG, 'x', [{ op: 'set_path', path: ['session', 'domain'], value: 'a.b' }])
   assert.ok(r.ok, r.ok ? '' : r.reason)
   assert.equal(r.changed.length, 1)
+})
+
+const SCRIPT = `#!/bin/sh
+set -eu
+# start the thing
+exec /usr/bin/authelia --config /config/configuration.yml
+`
+
+test('replace_text edits a file with no structure at all', () => {
+  const r = applyOps(SCRIPT, 'x', [
+    { op: 'replace_text', find: '--config /config/configuration.yml', replace: '--config /config/config.yml' },
+  ])
+  assert.ok(r.ok, r.ok ? '' : r.reason)
+  assert.ok(r.text.includes('--config /config/config.yml'))
+  assert.ok(r.text.startsWith('#!/bin/sh\n'), 'everything else byte-identical')
+})
+
+test('an anchor matching nothing is refused, not guessed at', () => {
+  const r = applyOps(SCRIPT, 'x', [{ op: 'replace_text', find: 'not present', replace: 'x' }])
+  assert.equal(r.ok, false)
+  assert.match(r.ok === false ? r.reason : '', /does not appear/)
+})
+
+test('an ambiguous anchor is refused rather than taking the first match', () => {
+  // Picking the first is precisely how a plausible edit lands in the wrong place.
+  const twice = 'port: 80\nport: 80\n'
+  const r = applyOps(twice, 'x', [{ op: 'replace_text', find: 'port: 80', replace: 'port: 8080' }])
+  assert.equal(r.ok, false)
+  assert.match(r.ok === false ? r.reason : '', /more than once/)
+})
+
+test('replace_text with an empty replacement removes the anchor', () => {
+  const r = applyOps(SCRIPT, 'x', [{ op: 'replace_text', find: '# start the thing\n', replace: '' }])
+  assert.ok(r.ok, r.ok ? '' : r.reason)
+  assert.ok(!r.text.includes('# start the thing'))
+  assert.ok(r.text.includes('exec /usr/bin/authelia'))
+})
+
+test('sequential text edits each re-check their own anchor', () => {
+  // An earlier replacement can create or destroy a later anchor, so uniqueness is
+  // checked against the text as it stands, not as it started.
+  const r = applyOps(SCRIPT, 'x', [
+    { op: 'replace_text', find: 'set -eu', replace: 'set -euo pipefail' },
+    { op: 'replace_text', find: 'set -euo pipefail', replace: 'set -eux' },
+  ])
+  assert.ok(r.ok, r.ok ? '' : r.reason)
+  assert.ok(r.text.includes('set -eux'))
 })

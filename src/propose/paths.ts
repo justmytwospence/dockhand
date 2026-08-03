@@ -12,8 +12,8 @@ import { dirname, relative, resolve, sep } from 'node:path'
  * | `none`         | nothing                                   |
  * | `service`      | this service's block in its compose file  |
  * | `compose-file` | any service in that compose file          |
- * | `compose-dir`  | any YAML file in the compose file's directory |
- * | `repo`         | any YAML file in the repository           |
+ * | `compose-dir`  | any file in the compose file's directory  |
+ * | `repo`         | any file in the repository                |
  *
  * `service` is the default. The first two rungs are about which *service* may change;
  * the last two are about which *file* may change, and both limits apply at once — at
@@ -22,11 +22,9 @@ import { dirname, relative, resolve, sep } from 'node:path'
  *
  * ## Two limits that no scope lifts
  *
- * **Only YAML.** Every operation works by locating a node in a parsed document and
- * splicing its bytes, then checking the result by applying the same operations to the
- * parsed object independently and comparing. A shell script, a Dockerfile, or a plain
- * `.conf` has no parse to address or to compare against, so an edit there could only be
- * "the model wrote something". Those stay notes.
+ * **Never binary.** There is nothing to anchor to in a PNG. Structured files (YAML,
+ * JSON) take the path operations; everything else — `.conf`, `.sh`, a Dockerfile —
+ * takes anchored text replacement, where the anchor must match exactly once.
  *
  * **Never its own guardrails, never anything executable.** A proposal can only add a
  * commit a human reviews — but a diff review is exactly where "one line in policy.yaml"
@@ -69,9 +67,24 @@ export function isForbidden(relPath: string, selfStack: string): boolean {
   return false
 }
 
-/** Only structured documents can be edited safely; everything else is a note. */
-export function isEditableType(relPath: string): boolean {
-  return /\.ya?ml$/i.test(relPath)
+/**
+ * Binary files are the only type that cannot be edited.
+ *
+ * An earlier version of this restricted edits to YAML, reasoning that the deep-compare
+ * needed a parse. That was backwards: the deep-compare never proved the edit was
+ * *right*, only that the applier did exactly what the operations named and nothing
+ * else — and an anchor matching exactly once gives the same guarantee with no parse at
+ * all. Structured files (YAML, JSON) get the path operations; everything else gets
+ * anchored replacement.
+ */
+export function isEditableType(relPath: string, content?: string): boolean {
+  if (content !== undefined && content.includes('\0')) return false
+  return !/\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tar|db|sqlite3?|woff2?|ttf|so|bin)$/i.test(relPath)
+}
+
+/** Structured formats the path operations can address. Everything else is text. */
+export function isStructured(relPath: string): boolean {
+  return /\.(ya?ml|json)$/i.test(relPath)
 }
 
 export interface Boundary {
@@ -99,6 +112,8 @@ export function canWrite(
   relPath: string,
   boundary: Boundary,
   selfStack: string,
+  /** File contents, when already read — catches a binary with an innocent extension. */
+  content?: string,
 ): FileVerdict {
   if (boundary.scope === 'none') return { ok: false, reason: 'this proposal may not change anything' }
 
@@ -107,11 +122,8 @@ export function canWrite(
   if (isForbidden(p, selfStack)) {
     return { ok: false, reason: `"${p}" is never writable by a proposal` }
   }
-  if (!isEditableType(p)) {
-    return {
-      ok: false,
-      reason: `"${p}" is not a YAML file — describe the change as a note instead`,
-    }
+  if (!isEditableType(p, content)) {
+    return { ok: false, reason: `"${p}" is a binary file — describe the change as a note instead` }
   }
 
   if (boundary.scope === 'service' || boundary.scope === 'compose-file') {
@@ -162,16 +174,16 @@ export function describeBoundary(
     case 'compose-dir':
       return [
         services,
-        `You may also change other YAML files under ${boundary.root}/ — a configuration`,
-        'file this service reads, for instance — using the path operations.',
-        'Non-YAML files, and anything outside that directory, are notes.',
+        `You may also change other files under ${boundary.root}/ — a configuration file`,
+        'this service reads, for instance. Use the path operations for YAML and JSON,',
+        'and replace_text for anything else. Files outside that directory are notes.',
       ].join('\n')
     case 'repo':
       return [
         services,
-        'You may also change YAML files elsewhere in the repository using the path',
-        "operations. dockhand's own configuration, CI workflows, scripts, and .env files",
-        'are never writable. Non-YAML files are notes.',
+        'You may also change files elsewhere in the repository: path operations for',
+        "YAML and JSON, replace_text for anything else. dockhand's own configuration,",
+        'CI workflows, scripts, and .env files are never writable.',
         'Prefer the narrowest change that works: reaching outside this stack needs a',
         'reason from the upstream documentation.',
       ].join('\n')

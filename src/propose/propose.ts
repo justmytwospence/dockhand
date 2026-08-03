@@ -58,6 +58,7 @@ const PROPOSE_CHANGES = {
                 'set_path',
                 'remove_path',
                 'rename_path',
+                'replace_text',
               ],
             },
             image: { type: 'string', description: 'set_image: the full new image reference.' },
@@ -78,6 +79,15 @@ const PROPOSE_CHANGES = {
               type: 'string',
               description:
                 'Repo-relative YAML file to change. Omit for this service\'s compose file. Only files inside the boundary you were given are accepted.',
+            },
+            find: {
+              type: 'string',
+              description:
+                'replace_text: the exact text to replace. It must appear exactly once in the file — an anchor matching zero or several places is refused, so include enough surrounding context to be unambiguous.',
+            },
+            replace: {
+              type: 'string',
+              description: 'replace_text: what to put there. Empty removes the anchor.',
             },
             path: {
               type: 'array',
@@ -230,6 +240,16 @@ function normalise(raw: Record<string, unknown>): Proposal {
       case 'rename_path':
         if (Array.isArray(o.path) && o.path.length && typeof o.to === 'string' && o.to) {
           ops.push({ ...file, op: 'rename_path', path: o.path as string[], to: o.to })
+        }
+        break
+      case 'replace_text':
+        if (typeof o.find === 'string' && o.find) {
+          ops.push({
+            ...file,
+            op: 'replace_text',
+            find: o.find,
+            replace: typeof o.replace === 'string' ? o.replace : '',
+          })
         }
         break
     }

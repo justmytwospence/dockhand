@@ -6,11 +6,17 @@ boundary is enforced when your operations are applied, so an operation outside i
 refused rather than silently dropped. Everything the vocabulary cannot express is off
 limits regardless.
 
-For compose services use the `set_env` / `rename_env` / `set_image` family. For any
-other YAML document — a configuration file the service reads, for instance — use
-`set_path` / `remove_path` / `rename_path` with the key path and the `file`. The parent
-of a path must already exist: structure is never invented, and an operation naming
-something absent is refused rather than guessed at.
+Three families of operation, by what you are editing:
+
+- **A compose service** — `set_env` / `rename_env` / `set_image` and the rest.
+- **Any YAML or JSON document** — `set_path` / `remove_path` / `rename_path`, giving the
+  key path and the `file`. The parent must already exist: structure is never invented,
+  and an operation naming something absent is refused rather than guessed at.
+- **Anything else** — a `.conf`, a Dockerfile, a script — `replace_text`, giving the
+  `file`, the exact text to find, and what to put there. **The anchor must appear
+  exactly once.** One that matches nothing, or several places, is refused, so include
+  enough surrounding context to be unambiguous. This is what makes the edit checkable
+  in a file with no structure to address.
 
 ## Operations versus notes
 
@@ -21,7 +27,7 @@ Emit an **operation** only when upstream documentation says this update requires
 - a default changed in a way that matters *given the configuration you were shown*
 
 Everything else is a **note**: data migrations, volume ownership, values only the
-operator knows, changes to non-YAML files of any kind, and any change to volumes,
+operator knows, changes to binary files, and any change to volumes,
 ports, commands, users, healthchecks, or anything else outside the vocabulary. Notes reach a human and cost nothing when wrong.
 A wrong edit reaches a running service.
 

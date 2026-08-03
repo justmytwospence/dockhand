@@ -29,6 +29,11 @@ export type Op = { service?: string; file?: string } & (
   | { op: 'set_path'; path: (string | number)[]; value: string }
   | { op: 'remove_path'; path: (string | number)[] }
   | { op: 'rename_path'; path: (string | number)[]; to: string }
+  // For files with no structure to address. The anchor must match exactly once, which
+  // is what makes the edit checkable: the same guarantee the deep-compare gives for a
+  // document -- the applier changed precisely what was named and nothing else -- without
+  // needing a parse to give it.
+  | { op: 'replace_text'; find: string; replace: string }
 )
 
 export type ApplyOutcome =
@@ -58,7 +63,11 @@ export function applyOps(
     const target = op.service ?? service
     // Path operations address a document directly and carry no service; their boundary
     // is the file, checked before this function is reached.
-    const isPathOp = op.op === 'set_path' || op.op === 'remove_path' || op.op === 'rename_path'
+    const isPathOp =
+      op.op === 'set_path' ||
+      op.op === 'remove_path' ||
+      op.op === 'rename_path' ||
+      op.op === 'replace_text'
     // Scope is enforced here rather than trusted from the prompt: an op naming a
     // service outside the permitted set is refused by name, whatever the model was
     // told it could do.
@@ -104,15 +113,47 @@ function describeOp(op: Op): string {
       return `${op.path.join('.')} removed`
     case 'rename_path':
       return `${op.path.join('.')} → ${op.to}`
+    case 'replace_text':
+      return `text: ${preview(op.find)} → ${preview(op.replace) || '(removed)'}`
   }
 }
 
+/**
+ * Replace an exactly-once anchor.
+ *
+ * Zero matches means the file is not what the model thought and the edit would be a
+ * guess. More than one means it cannot say which, and picking the first is precisely
+ * how a plausible edit lands in the wrong place. Both are refused, so what remains is
+ * unambiguous by construction.
+ */
+function replaceText(text: string, find: string, replace: string): ApplyOutcome {
+  if (!find) return { ok: false, reason: 'empty anchor' }
+  const first = text.indexOf(find)
+  if (first === -1) return { ok: false, reason: `"${preview(find)}" does not appear in this file` }
+  if (text.indexOf(find, first + find.length) !== -1) {
+    return {
+      ok: false,
+      reason: `"${preview(find)}" appears more than once — give an anchor that matches exactly one place`,
+    }
+  }
+  return { ok: true, text: text.slice(0, first) + replace + text.slice(first + find.length), changed: [] }
+}
+
+function preview(s: string): string {
+  const one = s.replace(/\s+/g, ' ').trim()
+  return one.length > 40 ? `${one.slice(0, 40)}…` : one
+}
+
 function applyOne(text: string, service: string, op: Op): ApplyOutcome {
+  // Before any parse: an unstructured file has none to succeed at, and requiring one
+  // would refuse exactly the files this operation exists for.
+  if (op.op === 'replace_text') return replaceText(text, op.find, op.replace)
+
   const doc = parseDocument(text, { keepSourceTokens: true })
   if (doc.errors.length > 0) return { ok: false, reason: `file does not parse: ${doc.errors[0]!.message}` }
 
-  // Path operations address the document root and are valid in any YAML file, so the
-  // compose shape is only required by the operations that assume it.
+  // Path operations address the document root and are valid in any structured file, so
+  // the compose shape is only required by the operations that assume it.
   switch (op.op) {
     case 'set_path':
       return setPath(doc, text, op.path, op.value)
@@ -402,6 +443,11 @@ function lineAt(text: string, offset: number): number {
  * someone's running stack.
  */
 function verify(before: string, after: string, service: string, ops: Op[]): ApplyOutcome {
+  // Text operations carry their own guarantee -- an anchor that matched exactly once --
+  // and an unstructured file has no parsed model to compare against. When that is all
+  // there is, there is nothing further to check.
+  if (ops.every((o) => o.op === 'replace_text')) return { ok: true, text: after, changed: [] }
+
   const parsedAfter = parseDocument(after)
   if (parsedAfter.errors.length > 0) {
     return { ok: false, reason: `result does not parse: ${parsedAfter.errors[0]!.message}` }
@@ -412,6 +458,7 @@ function verify(before: string, after: string, service: string, ops: Op[]): Appl
   for (const op of ops) {
     // Path operations address the document root, not a service, so they are checked
     // against the same parsed object by walking their own path.
+    if (op.op === 'replace_text') continue
     if (op.op === 'set_path' || op.op === 'remove_path' || op.op === 'rename_path') {
       const applied = applyPathToObject(expected, op)
       if (!applied.ok) return applied

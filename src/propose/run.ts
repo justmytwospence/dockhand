@@ -230,7 +230,13 @@ async function draftFor(c: Candidate): Promise<boolean> {
     const byFile = new Map<string, typeof result.ops>()
     for (const op of result.ops) {
       const file = op.file ?? c.composeFile
-      const verdict = canWrite(file, boundary, env.selfStack)
+      let peek: string | undefined
+      try {
+        peek = readFileSync(join(repoDir, file), 'utf8').slice(0, 8192)
+      } catch {
+        peek = undefined
+      }
+      const verdict = canWrite(file, boundary, env.selfStack, peek)
       if (!verdict.ok) {
         record(c, result, verdict.reason, [])
         await comment(

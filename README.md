@@ -169,7 +169,8 @@ takes effect on the next scan without recreating anything.
       dockhand.source: https://github.com/owner/repo   # if the image lacks an OCI source label
       dockhand.propose: service    # none | service | compose-file | compose-dir | repo
                                    #   how far a drafted change may reach, derived from
-                                   #   where the compose file sits. Default `service`.
+                                   #   where the compose file sits. Any text file inside
+                                   #   the boundary is editable. Default `service`.
       dockhand.claude: required    # refuse to auto-merge without a verdict
       dockhand.group: mygroup      # force services into one PR
       dockhand.deploy: rm-first    # recreate rather than update (re-reads image env)
