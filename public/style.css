@@ -1055,3 +1055,14 @@ details.advanced .settings {
     margin-right: 0.3rem;
   }
 }
+
+/* A legend hoisted to the section, because several fields there share one vocabulary. */
+.optlegend.hoisted {
+  border-left: 2px solid var(--line);
+  padding-left: 0.7rem;
+  margin: 0.1rem 0 0.9rem;
+}
+
+.optlegend.hoisted .opt {
+  opacity: 1;
+}

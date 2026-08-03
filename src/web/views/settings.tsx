@@ -133,14 +133,33 @@ export const SettingsForm: FC<{
       const all = SETTINGS.filter((s) => s.section === name)
       const primary = all.filter((s) => !s.advanced)
       const advanced = all.filter((s) => s.advanced)
+      // When several fields in a section share one vocabulary -- patch, minor and
+      // digest all pick a rung off the same ladder -- explain it once above them
+      // rather than three times inside them. Compared by identity, so it only
+      // collapses a legend that is literally the same object.
+      const shared = sharedLegend(all)
       return (
         <section id={slug(name)}>
           <h2>{name}</h2>
           <p class="sub">{blurb}</p>
+          {shared && (
+            <p class="sub optlegend hoisted">
+              {shared.options.map((o) => (
+                <span class="opt">
+                  <code>{o}</code> {shared.help[o]}
+                </span>
+              ))}
+            </p>
+          )}
           {primary.length > 0 && (
             <div class="settings">
               {primary.map((def) => (
-                <Field def={def} value={currentValue(policy, def.path)} models={models} />
+                <Field
+                  def={def}
+                  value={currentValue(policy, def.path)}
+                  models={models}
+                  legend={shared ? false : true}
+                />
               ))}
             </div>
           )}
@@ -153,7 +172,12 @@ export const SettingsForm: FC<{
               </summary>
               <div class="settings">
                 {advanced.map((def) => (
-                  <Field def={def} value={currentValue(policy, def.path)} models={models} />
+                  <Field
+                    def={def}
+                    value={currentValue(policy, def.path)}
+                    models={models}
+                    legend={shared ? false : true}
+                  />
                 ))}
               </div>
             </details>
@@ -171,10 +195,27 @@ export const SettingsForm: FC<{
   </form>
 )
 
-const Field: FC<{ def: SettingDef; value: string; models: string[] }> = ({
+/**
+ * The one legend every settable field in a section shares, or null.
+ *
+ * Identity comparison, not deep equality: two fields that happen to describe their
+ * options the same way are a coincidence, whereas two fields pointing at the same
+ * constant are the same vocabulary by construction.
+ */
+function sharedLegend(defs: SettingDef[]): { options: string[]; help: Record<string, string> } | null {
+  const withHelp = defs.filter((d) => d.optionHelp && !d.locked)
+  if (withHelp.length < 2) return null
+  const first = withHelp[0]!.optionHelp!
+  if (!withHelp.every((d) => d.optionHelp === first)) return null
+  const options = [...new Set(withHelp.flatMap((d) => d.options ?? []))].filter((o) => first[o])
+  return options.length > 0 ? { options, help: first } : null
+}
+
+const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boolean }> = ({
   def,
   value,
   models,
+  legend = true,
 }) => {
   const changed = !def.locked && value !== def.defaultValue
   return (
@@ -200,7 +241,7 @@ const Field: FC<{ def: SettingDef; value: string; models: string[] }> = ({
         {changed && <span class="sub"> (default: {def.defaultValue})</span>}
         {/* The gloss belongs under the control, not inside every option label: an
             option list is for choosing, and a sentence per choice does not fit in one. */}
-        {def.optionHelp && !def.locked && (
+        {legend && def.optionHelp && !def.locked && (
           <span class="optlegend">
             {(def.options ?? [])
               .filter((o) => def.optionHelp?.[o])
