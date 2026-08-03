@@ -51,6 +51,21 @@ export const SettingsPage: FC<{
       <SettingsForm policy={policy} models={models} result={result} />
     </div>
 
+    <h2>Next digest</h2>
+    <p class="sub">
+      Exactly what would be sent, rendered by the code that sends it. A batched
+      notification is otherwise invisible until it fires, which makes it hard to trust and
+      hard to tune.
+    </p>
+    <div
+      id="digest-preview"
+      hx-get="/settings/digest"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <p class="sub">loading&hellip;</p>
+    </div>
+
     <h2>Prompts</h2>
     <p class="sub">
       What the models are actually told. These are the instructions behind every verdict
@@ -167,8 +182,18 @@ export const SettingsForm: FC<{
             // Tuning, not policy: correct out of the box, and shown only on request so
             // the settings that decide what may happen are not lost among them.
             <details class="advanced">
+              {/* A bordered full-width control rather than a muted line of text: it is
+                  the only way to reach eight real settings, so it has to look like a
+                  thing you can press. The count is part of the label, not a badge
+                  beside it, because "Tuning 3" reads as a value rather than an action. */}
               <summary>
-                Tuning <span class="count">{advanced.length}</span>
+                <span class="chev" aria-hidden="true"></span>
+                {/* The section heading is directly above, so naming it again here only
+                    buys awkward grammar ("1 more pull requests setting"). */}
+                <span class="advanced-label">
+                  {advanced.length} more setting{advanced.length === 1 ? '' : 's'}
+                </span>
+                <span class="advanced-why">tuning &mdash; sensible by default</span>
               </summary>
               <div class="settings">
                 {advanced.map((def) => (
@@ -320,6 +345,53 @@ const Control: FC<{ def: SettingDef; value: string; models: string[] }> = ({
       return <input id={def.path} name={def.path} value={value} class="mono" />
   }
 }
+
+export const DigestPreview: FC<{
+  rows: { at: string }[]
+  message: { title: string; body: string } | null
+  policy: Policy
+}> = ({ rows, message, policy }) => (
+  <>
+    {policy.notify.routine !== 'digest' && (
+      <Banner kind="info">
+        Routine outcomes are set to <code>{policy.notify.routine}</code>, so no digest is
+        scheduled. {policy.notify.routine === 'immediate'
+          ? 'Each one is pushed as it happens.'
+          : 'They are recorded on the Activity page and pushed nowhere.'}
+      </Banner>
+    )}
+    {message ? (
+      <>
+        <div class="table-wrap">
+          <pre class="rawfile digest">
+            {message.title}
+            {'\n\n'}
+            {message.body}
+          </pre>
+        </div>
+        <div class="scanbar">
+          <button
+            hx-post="/settings/digest/send"
+            hx-target="#digest-send-status"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+          >
+            Send now
+          </button>
+          <span id="digest-send-status" class="sub">
+            {rows.length} item{rows.length === 1 ? '' : 's'} waiting since{' '}
+            {rows[0]!.at.replace('T', ' ').slice(0, 16)}
+          </span>
+        </div>
+      </>
+    ) : (
+      <p class="empty">
+        Nothing waiting. An empty digest is never sent &mdash; a scheduled &ldquo;0
+        things&rdquo; push is how a person learns to ignore the channel.
+      </p>
+    )}
+  </>
+)
 
 export const RawPolicy: FC<{ text: string; error?: string; missing?: MissingSetting[] }> = ({ text, error, missing }) => (
   <Layout title="policy.yaml" path="/settings" missing={missing}>
