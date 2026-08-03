@@ -11,6 +11,7 @@ import { resolveSource } from '../resolver/index.ts'
 import { parseImageRef } from '../images/ref.ts'
 import { ensureWorkRepo, git, httpsUrl, withGitLock } from '../gitops/repo.ts'
 import { applyOps } from './apply.ts'
+import { scopeFor, allowedServices, describeScope } from './scope.ts'
 import { proposalHunks } from './hunks.ts'
 import { propose, type Proposal } from './propose.ts'
 import { gatherContext } from './context.ts'
@@ -114,7 +115,7 @@ function pickCandidate(mode: string, only?: number): Candidate | null {
   const services = scanRepo(env.repoDir, loadPolicy().policy.exclude_stacks)
   for (const r of rows) {
     const svc = services.find((s) => s.stack === r.stack && s.service === r.service)
-    if (svc?.labels['dockhand.propose'] === 'off') continue
+    if (scopeFor(svc?.labels['dockhand.propose']) === 'none') continue
 
     if (only !== undefined) return r
 
@@ -166,8 +167,22 @@ async function draftFor(c: Candidate): Promise<boolean> {
       tag: ref.tag ?? c.fromTag,
     })
 
+    // Scope is resolved from the compose file at draft time, so a label edited since
+    // the pull request opened takes effect.
+    const services = scanRepo(env.repoDir, loadPolicy().policy.exclude_stacks)
+    const scope = scopeFor(
+      services.find((s) => s.stack === c.stack && s.service === c.service)?.labels[
+        'dockhand.propose'
+      ],
+    )
+    const siblings = services
+      .filter((s) => s.stack === c.stack && s.composeFile === c.composeFile)
+      .map((s) => s.service)
+    const allowed = allowedServices(scope, c.service, siblings)
+
     const result = await propose({
       context: await gatherContext(before, c.service),
+      scope: describeScope(scope, c.service, allowed),
       image: c.image,
       fromTag: c.fromTag,
       toTag: c.toTag,
@@ -199,7 +214,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
       return true
     }
 
-    const applied = applyOps(before, c.service, result.ops)
+    const applied = applyOps(before, c.service, result.ops, allowed)
     if (!applied.ok) {
       // A refused proposal must be visible: silence would look like "nothing to do".
       record(c, result, applied.reason, [])

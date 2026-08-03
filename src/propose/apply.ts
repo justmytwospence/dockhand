@@ -12,13 +12,18 @@ import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument, type Documen
  * emitter would quietly reformat all of them.
  */
 
-export type Op =
+/**
+ * Every op may name the service it targets. Absent means the service being updated,
+ * which is the only one reachable at the default scope.
+ */
+export type Op = { service?: string } & (
   | { op: 'set_image'; image: string }
   | { op: 'set_env'; key: string; value: string }
   | { op: 'remove_env'; key: string }
   | { op: 'rename_env'; from: string; to: string }
   | { op: 'set_label'; key: string; value: string }
   | { op: 'remove_label'; key: string }
+)
 
 export type ApplyOutcome =
   | { ok: true; text: string; changed: string[] }
@@ -31,17 +36,33 @@ export type ApplyOutcome =
  * located against the document as it actually is rather than against stale offsets.
  * That costs a few parses and removes a whole class of splice-collision bug.
  */
-export function applyOps(text: string, service: string, ops: Op[]): ApplyOutcome {
+export function applyOps(
+  text: string,
+  service: string,
+  ops: Op[],
+  /** Services this proposal may touch. Defaults to the one being updated. */
+  allowed: string[] = [service],
+): ApplyOutcome {
   if (ops.length === 0) return { ok: true, text, changed: [] }
 
   let current = text
   const changed: string[] = []
 
   for (const op of ops) {
-    const step = applyOne(current, service, op)
+    const target = op.service ?? service
+    // Scope is enforced here rather than trusted from the prompt: an op naming a
+    // service outside the permitted set is refused by name, whatever the model was
+    // told it could do.
+    if (!allowed.includes(target)) {
+      return {
+        ok: false,
+        reason: `this proposal may not change "${target}" — permitted: ${allowed.join(', ')}`,
+      }
+    }
+    const step = applyOne(current, target, op)
     if (!step.ok) return step
     current = step.text
-    changed.push(describe(op))
+    changed.push(describe(op, target, service))
   }
 
   const check = verify(text, current, service, ops)
@@ -49,7 +70,12 @@ export function applyOps(text: string, service: string, ops: Op[]): ApplyOutcome
   return { ok: true, text: current, changed }
 }
 
-function describe(op: Op): string {
+function describe(op: Op, target: string, primary: string): string {
+  const where = target === primary ? '' : ` (${target})`
+  return describeOp(op) + where
+}
+
+function describeOp(op: Op): string {
   switch (op.op) {
     case 'set_image':
       return `image → ${op.image}`
@@ -292,10 +318,12 @@ function verify(before: string, after: string, service: string, ops: Op[]): Appl
   }
 
   const expected = parseDocument(before).toJS() as Record<string, any>
-  const svc = expected?.services?.[service]
-  if (!svc) return { ok: false, reason: `service "${service}" vanished` }
 
   for (const op of ops) {
+    // Resolved per op, not once: an op may name a sibling service, and applying it to
+    // the primary would make the comparison disagree with a correct edit.
+    const svc = expected?.services?.[op.service ?? service]
+    if (!svc) return { ok: false, reason: `service "${op.service ?? service}" vanished` }
     switch (op.op) {
       case 'set_image':
         svc.image = op.image

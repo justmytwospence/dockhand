@@ -59,6 +59,11 @@ const PROPOSE_CHANGES = {
             },
             from: { type: 'string', description: 'rename_env: the current name.' },
             to: { type: 'string', description: 'rename_env: the new name.' },
+            service: {
+              type: 'string',
+              description:
+                'Which service to change. Omit for the service being updated. Only services you were told you may change are accepted.',
+            },
           },
           required: ['op'],
         },
@@ -88,6 +93,8 @@ export interface ProposeInput {
   verdict: { summary: string; breaking_changes: string[]; migration_steps: string[] }
   /** Facts about the running deployment the compose file cannot state. */
   context: DeployContext
+  /** What this proposal is permitted to change, in the model's own terms. */
+  scope: string
 }
 
 export async function propose(input: ProposeInput): Promise<Proposal | { error: string }> {
@@ -149,6 +156,8 @@ function renderPrompt(i: ProposeInput): string {
     '',
     renderContext(i.context),
     '',
+    i.scope,
+    '',
     'Read the upstream migration documentation before deciding. Then call',
     'propose_changes with the operations this specific configuration requires, and notes',
     'for everything else.',
@@ -164,26 +173,27 @@ function normalise(raw: Record<string, unknown>): Proposal {
     const o = item as Record<string, unknown>
     const key = typeof o.key === 'string' ? o.key : ''
     const value = typeof o.value === 'string' ? o.value : ''
+    const service = typeof o.service === 'string' && o.service ? { service: o.service } : {}
     switch (o.op) {
       case 'set_image':
-        if (typeof o.image === 'string' && o.image) ops.push({ op: 'set_image', image: o.image })
+        if (typeof o.image === 'string' && o.image) ops.push({ ...service, op: 'set_image', image: o.image })
         break
       case 'set_env':
-        if (key && value) ops.push({ op: 'set_env', key, value })
+        if (key && value) ops.push({ ...service, op: 'set_env', key, value })
         break
       case 'remove_env':
-        if (key) ops.push({ op: 'remove_env', key })
+        if (key) ops.push({ ...service, op: 'remove_env', key })
         break
       case 'rename_env':
         if (typeof o.from === 'string' && typeof o.to === 'string' && o.from && o.to) {
-          ops.push({ op: 'rename_env', from: o.from, to: o.to })
+          ops.push({ ...service, op: 'rename_env', from: o.from, to: o.to })
         }
         break
       case 'set_label':
-        if (key && value) ops.push({ op: 'set_label', key, value })
+        if (key && value) ops.push({ ...service, op: 'set_label', key, value })
         break
       case 'remove_label':
-        if (key) ops.push({ op: 'remove_label', key })
+        if (key) ops.push({ ...service, op: 'remove_label', key })
         break
     }
   }
