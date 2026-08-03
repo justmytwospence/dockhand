@@ -19,6 +19,37 @@ export interface RefLinks {
   source: string | null
   /** Upstream releases, filtered near this tag. */
   releases: string | null
+  /**
+   * Documentation of the *image* -- the environment variables, volumes and ports you
+   * actually configure -- as opposed to the project's own docs, which `source` covers.
+   *
+   * Only emitted where a publisher has a known, stable, derivable URL for it: LinuxServer
+   * (a page per image) and Docker Official Images (the Hub overview, which for those is a
+   * genuine hand-written document rather than a tag list). Nothing else is guessed; for
+   * most images the source repo README is the documentation and `source` already points
+   * at it.
+   */
+  docs: string | null
+}
+
+/** What to call a registry in a link. Unknown hosts are named by their hostname. */
+export function registryName(registry: string): string {
+  switch (registry) {
+    case 'docker.io':
+      return 'Docker Hub'
+    case 'ghcr.io':
+      return 'GitHub Packages'
+    case 'lscr.io':
+      return 'LinuxServer Fleet'
+    case 'quay.io':
+      return 'Quay'
+    case 'registry.gitlab.com':
+      return 'GitLab'
+    case 'codeberg.org':
+      return 'Codeberg'
+    default:
+      return registry
+  }
 }
 
 export function refLinks(
@@ -39,16 +70,26 @@ export function refLinks(
         : sourceRepo
           ? `https://github.com/${sourceRepo}/releases`
           : null,
+    docs: null,
   }
 
   const repo = ref.repository
   const name = repo.split('/').pop() ?? repo
 
+  // LinuxServer images reach this from two registries (lscr.io and the Docker Hub
+  // mirror), and the docs page is keyed by image name in both cases.
+  if (repo.startsWith('linuxserver/')) {
+    out.docs = `https://docs.linuxserver.io/images/docker-${name}/`
+  }
+
   switch (ref.registry) {
     case 'docker.io': {
       if (repo.startsWith('library/')) {
-        // Official images live under the underscore path, not /r/library/.
+        // Official images live under the underscore path, not /r/library/. That page is
+        // also the image's documentation -- maintained prose about how to configure it,
+        // not a generated tag list -- so it serves as both.
         out.image = `https://hub.docker.com/_/${name}`
+        out.docs = out.image
         out.tag = clean ? `${out.image}/tags?name=${encodeURIComponent(clean)}` : null
       } else {
         out.image = `https://hub.docker.com/r/${repo}`

@@ -133,6 +133,17 @@ export const DiffView: FC<{
           releases &#8599;
         </a>
       )}
+      {links?.source && (
+        <a class="ext" href={links.source} target="_blank" rel="noopener">
+          project &#8599;
+        </a>
+      )}
+      {/* How the *image* is configured, which the project's own README rarely covers. */}
+      {links?.docs && (
+        <a class="ext" href={links.docs} target="_blank" rel="noopener">
+          image docs &#8599;
+        </a>
+      )}
       {prUrl && prNumber ? (
         <a class="ext" href={prUrl} target="_blank" rel="noopener">
           pull request #{prNumber} &#8599;

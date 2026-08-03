@@ -60,7 +60,9 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
       </li>
       <li>
         <b>Opened.</b> A branch off the true tip of <code>main</code>, one commit, nothing
-        but the image line. Companions that must move together share one pull request.
+        but the image line. Companions that must move together share one pull request. The
+        body links the release notes for the target version, the project, and the image's
+        own documentation, so deciding does not start with a search.
         <span class="knob">
           <code>dockhand.group</code>, <a href="/settings#pull-requests">Pull requests</a>
         </span>

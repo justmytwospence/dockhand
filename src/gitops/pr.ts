@@ -5,9 +5,11 @@ import { scanRepo } from '../compose/scan.ts'
 import { parseImageRef, formatImageRef } from '../images/ref.ts'
 import { branchFor, groupUpdates, makeLookups, type GroupMember, type UpdateGroup } from '../groups.ts'
 import { notify } from '../notify.ts'
-import { foldGroupMagnitude, foldGroupTier, shouldOpenPr, type EffectiveTier } from '../policy.ts'
+import { foldGroupMagnitude, shouldOpenPr, type EffectiveTier } from '../policy.ts'
 import type { Magnitude } from '../versions/patterns.ts'
 import { bumpImage } from './editor.ts'
+import { prBody, short } from './body.ts'
+import { resolveSource } from '../resolver/index.ts'
 import { authorArgs, ensureWorkRepo, git, httpsUrl, withGitLock } from './repo.ts'
 import { syncMain } from './sync.ts'
 
@@ -234,6 +236,10 @@ async function openPr(repoDir: string, group: UpdateGroup, policy: Policy): Prom
   const push = await pushBranch(repoDir, branch)
   if (!push.ok) return failGroup(group, push.reason)
 
+  // After the push, so a registry being slow or down delays the body's links rather
+  // than the branch. sourceRepos never throws; unresolved members simply lose theirs.
+  const sources = await sourceRepos(group)
+
   const { owner, repo } = repoParts()
   const created = await gh().rest.pulls.create({
     owner,
@@ -241,7 +247,7 @@ async function openPr(repoDir: string, group: UpdateGroup, policy: Policy): Prom
     base: 'main',
     head: branch,
     title,
-    body: prBody(group, policy),
+    body: prBody(group, policy, sources),
   })
   const number = created.data.number
 
@@ -355,46 +361,49 @@ function prTitle(g: UpdateGroup): string {
   return `chore(deps): ${m.stack}: bump ${names} ${short(m.from_tag)} -> ${short(m.to_tag)}`
 }
 
-function prBody(g: UpdateGroup, policy: Policy): string {
-  const m0 = g.members[0]!
-  const magnitude = foldGroupMagnitude(g.members.map((m) => m.magnitude as Magnitude))
-  const tier = foldGroupTier(g.members.map((m) => m.tier as EffectiveTier))
-
-  const rows = g.members
-    .map((m) => `| \`${m.service}\` | \`${m.image}\` | \`${short(m.from_tag)}\` | \`${short(m.to_tag)}\` |`)
-    .join('\n')
-
-  const grouped =
-    g.members.length > 1
-      ? `\n> These services are pinned to the same version upstream and are bumped together —\n> merging them separately would leave the stack running mismatched versions.\n`
-      : ''
-
-  const analysis =
-    policy.claude.mode === 'off'
-      ? '_Changelog analysis is disabled._'
-      : '_Changelog analysis has not run yet._'
-
-  return `**${magnitude}** update · policy tier \`${tier}\`
-${grouped}
-| Service | Image | From | To |
-|---|---|---|---|
-${rows}
-
-<!-- dockhand:verdict:start -->
-### Changelog analysis
-
-${analysis}
-<!-- dockhand:verdict:end -->
-
----
-<sub>Opened by [dockhand](https://github.com/justmytwospence/dockhand). Merging this deploys the change on the host.</sub>
-<!-- dockhand: stack=${m0.stack} services=${g.members.map((m) => m.service).join(',')} from=${m0.from_tag} to=${m0.to_tag} -->`
+/**
+ * The upstream repository for each member, resolved before the body is written.
+ *
+ * Resolving here rather than reading the cache is deliberate. The cache is populated by
+ * `analyze()`, which runs a minute *after* the pull request opens, so at this point most
+ * images have no row -- and a reference section that said "no upstream resolved" for
+ * almost every pull request would be worse than none. Nothing extra is spent: the answer
+ * is cached permanently and analysis would have made the identical call moments later.
+ *
+ * Note it is not read through groups.ts's `sourceRepoFor`, which falls back to the
+ * image's own repository path when nothing resolves. That fallback is right for deciding
+ * what to group -- two services sharing an image share an identity -- and wrong here,
+ * where it would render as a GitHub link that 404s.
+ */
+async function sourceRepos(g: UpdateGroup): Promise<Map<number, string | null>> {
+  const out = new Map<number, string | null>()
+  for (const m of g.members) {
+    const ref = parseImageRef(m.image)
+    try {
+      const r = await resolveSource({
+        registry: ref.registry,
+        repository: ref.repository,
+        tag: ref.tag ?? m.from_tag,
+        sourceLabel: sourceLabelFor(m.stack, m.service),
+      })
+      out.set(m.id, r.sourceRepo)
+    } catch {
+      // A pull request must open whether or not a registry is reachable. Links are the
+      // one part of it that is genuinely optional.
+      out.set(m.id, null)
+    }
+  }
+  return out
 }
 
-function short(ref: string): string {
-  const at = ref.indexOf('@sha256:')
-  return at === -1 ? ref : `${ref.slice(0, at)}@${ref.slice(at + 8, at + 20)}`
+/** The service's `dockhand.source` label, as recorded by the last scan. */
+function sourceLabelFor(stack: string, service: string): string | null {
+  const row = getDb()
+    .prepare(`SELECT source_label FROM images WHERE stack = ? AND service = ?`)
+    .get(stack, service) as { source_label: string | null } | undefined
+  return row?.source_label ?? null
 }
+
 
 function composeFileFor(stack: string, service: string): string | null {
   const row = getDb()
