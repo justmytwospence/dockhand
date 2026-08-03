@@ -54,8 +54,36 @@ export const Dashboard: FC<{
   const watched = services.filter((s) => s.watched)
   const unwatchable = services.filter((s) => s.unwatchable)
 
+  const tiles: [number, string][] = [
+    [pending.length, 'pending'],
+    [watched.length, 'watched'],
+    [unwatchable.length, 'not watchable'],
+    [services.length, 'services'],
+  ]
+
   return (
-    <Layout title="Dashboard" path="/" missing={missing}>
+    <Layout
+      title="Dashboard"
+      path="/"
+      missing={missing}
+      // The page's one primary action belongs in the header, not floating in the body.
+      actions={
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          <span id="scan-status" hx-get="/scan/status" hx-trigger="load">
+            <ScanStatus scan={scan} />
+          </span>
+          <button
+            class="btn btn-primary"
+            hx-post="/scan"
+            hx-target="#scan-status"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+          >
+            Scan now
+          </button>
+        </div>
+      }
+    >
       {policyError && <Banner kind="error">{policyError}</Banner>}
       {blackout && (
         <Banner kind="info">
@@ -63,32 +91,17 @@ export const Dashboard: FC<{
         </Banner>
       )}
 
-      <section class="tiles">
-        <div class="tile">
-          <span class="num">{pending.length}</span>
-          <span class="lbl">pending</span>
-        </div>
-        <div class="tile">
-          <span class="num">{watched.length}</span>
-          <span class="lbl">watched</span>
-        </div>
-        <div class="tile">
-          <span class="num">{unwatchable.length}</span>
-          <span class="lbl">not watchable</span>
-        </div>
-        <div class="tile">
-          <span class="num">{services.length}</span>
-          <span class="lbl">services</span>
-        </div>
-      </section>
-
-      <div class="scanbar">
-        <button hx-post="/scan" hx-target="#scan-status" hx-swap="innerHTML" hx-disabled-elt="this">
-          Scan now
-        </button>
-        <span id="scan-status" hx-get="/scan/status" hx-trigger="load">
-          <ScanStatus scan={scan} />
-        </span>
+      <div class="row row-deck row-cards mb-3">
+        {tiles.map(([n, label]) => (
+          <div class="col-6 col-sm-3">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="h1 mb-0">{n}</div>
+                <div class="sub">{label}</div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Polls only while a scan is running: the status fragment emits #scan-running,
@@ -107,6 +120,13 @@ export const Dashboard: FC<{
         <Empty>Nothing logged yet.</Empty>
       ) : (
         <Table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Kind</th>
+              <th>What happened</th>
+            </tr>
+          </thead>
           <tbody>
             {recent.map((r) => (
               <tr>
@@ -152,17 +172,21 @@ export const PendingSections: FC<{
     <>
       {anyPrs && (
         <nav class="filters scopefilters">
-          {SCOPE_FILTERS.map(([key, label]) => (
-            <a
-              href="#"
-              class={scopeFilter === key ? 'active' : ''}
-              hx-get={`/fragments/pending?prscope=${key}`}
-              hx-target="#pending"
-              hx-swap="innerHTML"
-            >
-              {label}
-            </a>
-          ))}
+          <ul class="nav nav-pills">
+            {SCOPE_FILTERS.map(([key, label]) => (
+              <li class="nav-item">
+                <a
+                  href="#"
+                  class={`nav-link${scopeFilter === key ? ' active' : ''}`}
+                  hx-get={`/fragments/pending?prscope=${key}`}
+                  hx-target="#pending"
+                  hx-swap="innerHTML"
+                >
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
           <span class="sub filters-note">
             &ldquo;+ config&rdquo; carries changes dockhand drafted; &ldquo;edited&rdquo; carries yours.
             Neither can merge automatically.
