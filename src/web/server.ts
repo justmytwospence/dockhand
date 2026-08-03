@@ -28,6 +28,8 @@ import { AboutPage } from './views/about.tsx'
 import { applySettings, SETTINGS } from '../settings.ts'
 import { listModels } from '../analyze/models.ts'
 import { flush as flushDigest, pending as pendingDigest, render as renderDigest } from '../notify/digest.ts'
+import { activeChannels } from '../notify/index.ts'
+import { configured as emailConfigured, send as sendEmail, escapeHtml as escapeText } from '../notify/email.ts'
 import { rescheduleScan, rescheduleDigest } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
@@ -360,8 +362,18 @@ export function createApp(): Hono {
    */
   app.get('/settings/digest', (c) => {
     const { policy } = loadPolicy()
+    const rows = pendingDigest()
     return c.html(
-      DigestPreview({ rows: pendingDigest(), message: renderDigest(pendingDigest()), policy }) as string,
+      DigestPreview({
+        rows,
+        message: renderDigest(rows),
+        policy,
+        channels: {
+          alert: activeChannels('alert'),
+          routine: activeChannels('routine'),
+        },
+        emailConfigured: emailConfigured(),
+      }) as string,
     )
   })
 
@@ -371,6 +383,30 @@ export function createApp(): Hono {
       r.sent > 0
         ? `<span class="sub">sent ${r.sent} item(s)</span>`
         : `<span class="sub">${r.skipped ?? 'nothing to send'}</span>`,
+    )
+  })
+
+  /**
+   * Prove the mail path end to end.
+   *
+   * SMTP is the one piece of this that fails silently and for reasons nothing else can
+   * observe -- a wrong port, a relay that refuses the sender, TLS that only works on 465.
+   * A button that reports the server's own error beats reading logs after the fact.
+   */
+  app.post('/settings/email/test', async (c) => {
+    if (!emailConfigured()) {
+      return c.html(
+        '<span class="sub">SMTP_URL and MAIL_TO are not both set — nothing to test.</span>',
+      )
+    }
+    const r = await sendEmail({
+      subject: 'dockhand: test message',
+      text: 'If you are reading this, dockhand can send you email.\n\nSent from the Settings page.',
+    })
+    return c.html(
+      r.ok
+        ? '<span class="sub">sent — check the inbox</span>'
+        : `<span class="warn-text">${escapeText(r.error ?? 'failed')}</span>`,
     )
   })
 

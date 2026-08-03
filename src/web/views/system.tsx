@@ -138,9 +138,19 @@ export const SystemPage: FC<{
         <Cred name="GITHUB_TOKEN" set={!!env.githubToken} />
         <Cred name="ANTHROPIC_API_KEY" set={!!env.anthropicApiKey} />
         <Cred name="NTFY_TOKEN" set={!!env.ntfyToken} />
+        {/* Both are needed together: one without the other is unconfigured, not broken,
+            so showing them as one row stops a half-set pair reading as ready. */}
+        <Cred name="SMTP_URL + MAIL_TO" set={!!env.smtpUrl && !!env.mailTo} optional />
         <Cred name="DOCKER_HUB_LOGIN" set={!!env.dockerHubLogin} />
       </tbody>
     </Table>
+    {!!env.smtpUrl && !!env.mailTo && (
+      <p class="sub">
+        Mail from <code>{env.mailFrom}</code> to <code>{env.mailTo}</code>. What it
+        receives is <code>notify.email</code> on <a href="/settings">Settings</a>, which
+        also has a test button.
+      </p>
+    )}
 
     <h2>Model-decided updates</h2>
     {!modelTier || modelTier.length === 0 ? (
@@ -314,11 +324,20 @@ function pct(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`
 }
 
-const Cred: FC<{ name: string; set: boolean }> = ({ name, set }) => (
+const Cred: FC<{ name: string; set: boolean; optional?: boolean }> = ({
+  name,
+  set,
+  optional,
+}) => (
   <tr>
     <th class="mono">{name}</th>
     <td>
-      {set ? <span class="pill ok">set</span> : <span class="pill warn">missing</span>}
+      {set ? (
+        <span class="pill ok">set</span>
+      ) : (
+        // An unset optional credential is a feature switched off, not something wrong.
+        <span class={`pill ${optional ? 'muted' : 'warn'}`}>{optional ? 'not in use' : 'missing'}</span>
+      )}
     </td>
   </tr>
 )

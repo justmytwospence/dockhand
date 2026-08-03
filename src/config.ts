@@ -37,6 +37,14 @@ export const env = {
   ntfyUrl: process.env.NTFY_URL ?? '',
   ntfyTopic: process.env.NTFY_TOPIC ?? 'dockhand',
   ntfyToken: process.env.NTFY_TOKEN ?? '',
+  /** A full SMTP connection string -- `smtps://user:pass@host:465`. Credentials, so it
+   *  lives here rather than in the tracked policy file. */
+  smtpUrl: process.env.SMTP_URL ?? '',
+  /** Comma-separated recipients. Email is only ever sent when both this and SMTP_URL
+   *  are set; there is no partial state where dockhand tries and fails every time. */
+  mailTo: process.env.MAIL_TO ?? '',
+  /** Envelope sender. Defaults to the identity already used for git commits. */
+  mailFrom: process.env.MAIL_FROM ?? process.env.BOT_EMAIL ?? 'dockhand@localhost',
   dockerHubLogin: process.env.DOCKER_HUB_LOGIN ?? '',
   dockerHubPassword: process.env.DOCKER_HUB_PASSWORD ?? '',
 } as const
@@ -229,6 +237,13 @@ const PolicySchema = z.object({
       // When the digest goes out. Seconds-field cron, like scan.cron. Defaults to a few
       // hours after the default scan so the night's work is already in it.
       cron: z.string().default('0 0 8 * * *'),
+      // What each channel receives. Stated per channel rather than as two lists of
+      // channels, because the question an operator actually has is "what does my phone
+      // buzz for" -- and the useful split is exactly this one: push for what is broken,
+      // email for the summary. A channel that is not configured is skipped whatever is
+      // set here, so the default of `all` is safe on a deployment with neither.
+      ntfy: z.enum(['all', 'alerts', 'routine', 'off']).default('all'),
+      email: z.enum(['all', 'alerts', 'routine', 'off']).default('all'),
     })
     .prefault({}),
   deploy: z

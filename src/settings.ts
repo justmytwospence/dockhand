@@ -98,6 +98,18 @@ export const SECTIONS = [
 
 export type SectionName = (typeof SECTIONS)[number][0]
 
+/**
+ * What a delivery channel receives. Stated per channel rather than as two lists of
+ * channels, because the question an operator actually has is "what does my phone buzz
+ * for" -- and the useful answer is often not the same for both.
+ */
+const CHANNEL_HELP: Record<string, string> = {
+  all: 'everything: failures as they happen, and the routine digest',
+  alerts: 'only what went wrong — a failed deploy, an unhealthy service, a stuck sync',
+  routine: 'only the digest of what dockhand did as intended',
+  off: 'nothing at all',
+}
+
 /** Plain-language gloss for the one enum that carries the whole model. */
 const TIER_HELP: Record<string, string> = {
   auto: 'dockhand opens a pull request and merges it, unless the changelog review says otherwise',
@@ -386,6 +398,26 @@ export const SETTINGS: SettingDef[] = [
     defaultValue: '0 0 8 * * *',
     label: 'Digest schedule',
     help: 'Six fields, seconds first. Nothing is sent when nothing happened. Applies immediately, no restart needed.',
+  },
+  {
+    section: 'Telling you about it',
+    path: 'notify.ntfy',
+    kind: 'enum',
+    options: ['all', 'alerts', 'routine', 'off'],
+    optionHelp: CHANNEL_HELP,
+    defaultValue: 'all',
+    label: 'Push (ntfy)',
+    help: 'Needs NTFY_TOKEN. Nothing is sent to a channel that is not configured, whatever this says.',
+  },
+  {
+    section: 'Telling you about it',
+    path: 'notify.email',
+    kind: 'enum',
+    options: ['all', 'alerts', 'routine', 'off'],
+    optionHelp: CHANNEL_HELP,
+    defaultValue: 'all',
+    label: 'Email',
+    help: 'Needs SMTP_URL and MAIL_TO in the environment. Emailed digests carry a link per item, which a push cannot.',
   },
 
   // -------------------------------------------------------- Keeping git in step

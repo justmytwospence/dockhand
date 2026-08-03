@@ -146,6 +146,14 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
       </tbody>
     </Table>
     <p class="sub">
+      Each channel then says which of the two it wants, so &ldquo;push for what broke,
+      email for the summary&rdquo; is one setting each. Right now push is{' '}
+      <strong>{policy.notify.ntfy}</strong> and email is{' '}
+      <strong>{policy.notify.email}</strong> &mdash; and a channel with no credentials is
+      skipped whatever that says. An emailed digest links each item at its pull request,
+      which a push cannot: ntfy has one click target for the whole message.
+    </p>
+    <p class="sub">
       An empty digest is never sent. Every routine item is on the{' '}
       <a href="/activity">Activity</a> page whether or not it was pushed, and the exact
       text of the next digest is on <a href="/settings">Settings</a>.

@@ -1,6 +1,7 @@
 import { loadPolicy, env } from '../config.ts'
 import { getDb, logEvent } from '../db.ts'
 import { notify } from './index.ts'
+import { escapeHtml } from './email.ts'
 
 /**
  * One notification per batch, not one per thing dockhand did.
@@ -84,6 +85,7 @@ export async function routine(item: DigestItem): Promise<void> {
     await notify({
       title: `dockhand: ${item.summary}`,
       body: item.detail ?? item.summary,
+      kind: 'routine',
       tags: ['package'],
       click: item.url,
     })
@@ -107,34 +109,95 @@ export function pending(): Row[] {
     .all() as Row[]
 }
 
+/** The digest as structure, so each transport can render what it is actually good at. */
+interface Grouped {
+  title: string
+  sections: { heading: string; items: Row[]; more: number }[]
+}
+
+function group(rows: Row[]): Grouped | null {
+  if (rows.length === 0) return null
+  const sections: Grouped['sections'] = []
+  for (const section of SECTIONS) {
+    const mine = rows.filter((r) => r.category === section.category)
+    if (mine.length === 0) continue
+    sections.push({
+      heading: section.heading(mine.length),
+      items: mine.slice(0, MAX_PER_SECTION),
+      more: Math.max(0, mine.length - MAX_PER_SECTION),
+    })
+  }
+  // A count in the title is what makes the notification worth expanding or not.
+  return {
+    title: rows.length === 1 ? `dockhand: ${rows[0]!.summary}` : `dockhand: ${rows.length} updates`,
+    sections,
+  }
+}
+
+/** `stack/service: ` prefix, or nothing when the item is not about one service. */
+function where(r: Row): string {
+  return r.stack ? `${r.stack}${r.service ? `/${r.service}` : ''}: ` : ''
+}
+
 /**
- * Render the digest. Pure, and exported so the UI can show exactly what would go out.
+ * Render the digest as plain text. Pure, and exported so the UI can show exactly what
+ * would go out.
  *
  * Returns null for an empty batch rather than an empty string, so "nothing to send" is a
  * state the caller has to handle rather than a message it might accidentally send.
  */
 export function render(rows: Row[]): { title: string; body: string } | null {
-  if (rows.length === 0) return null
+  const g = group(rows)
+  if (!g) return null
 
   const parts: string[] = []
-  for (const section of SECTIONS) {
-    const mine = rows.filter((r) => r.category === section.category)
-    if (mine.length === 0) continue
-    parts.push(section.heading(mine.length))
-    for (const r of mine.slice(0, MAX_PER_SECTION)) {
-      const where = r.stack ? `${r.stack}${r.service ? `/${r.service}` : ''}: ` : ''
-      parts.push(`  ${where}${r.summary}`)
-    }
-    if (mine.length > MAX_PER_SECTION) {
-      parts.push(`  ...and ${mine.length - MAX_PER_SECTION} more`)
-    }
+  for (const section of g.sections) {
+    parts.push(section.heading)
+    for (const r of section.items) parts.push(`  ${where(r)}${r.summary}`)
+    if (section.more > 0) parts.push(`  ...and ${section.more} more`)
     parts.push('')
   }
+  return { title: g.title, body: parts.join('\n').trimEnd() }
+}
 
-  // A count in the title is what makes the notification worth expanding or not.
-  const title =
-    rows.length === 1 ? `dockhand: ${rows[0]!.summary}` : `dockhand: ${rows.length} updates`
-  return { title, body: parts.join('\n').trimEnd() }
+/**
+ * The same digest as HTML, for channels that can render one.
+ *
+ * Worth the second renderer for exactly one reason: every item already knows the pull
+ * request it is about, and in a mail client that can be a link. The ntfy body cannot use
+ * them -- a push has one click target for the whole message -- so the plain-text version
+ * leaves them out rather than pasting bare URLs into a phone notification.
+ */
+export function renderHtml(rows: Row[]): string | null {
+  const g = group(rows)
+  if (!g) return null
+
+  const esc = escapeHtml
+  const out: string[] = [
+    `<div style="font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1c1a">`,
+  ]
+  for (const section of g.sections) {
+    out.push(`<p style="margin:1.2em 0 .3em;font-weight:600">${esc(section.heading)}</p>`)
+    out.push(`<ul style="margin:0;padding-left:1.2em">`)
+    for (const r of section.items) {
+      const text = `${esc(where(r))}${esc(r.summary)}`
+      out.push(
+        `<li style="margin:.2em 0">${
+          r.url ? `<a href="${esc(r.url)}" style="color:#2f6f57">${text}</a>` : text
+        }${r.detail ? `<div style="color:#6b6b66;font-size:.92em">${esc(r.detail)}</div>` : ''}</li>`,
+      )
+    }
+    if (section.more > 0) {
+      out.push(`<li style="margin:.2em 0;color:#6b6b66">and ${section.more} more</li>`)
+    }
+    out.push(`</ul>`)
+  }
+  out.push(
+    `<p style="margin:1.5em 0 0;color:#6b6b66;font-size:.9em">` +
+      `Anything that went wrong is sent on its own, immediately, and is never in a digest.</p>`,
+    `</div>`,
+  )
+  return out.join('\n')
 }
 
 export interface FlushResult {
@@ -159,6 +222,8 @@ export async function flush(trigger: 'cron' | 'manual'): Promise<FlushResult> {
 
   await notify({
     ...message,
+    kind: 'routine',
+    html: renderHtml(rows) ?? undefined,
     tags: ['package'],
     click: env.githubRepo ? `https://github.com/${env.githubRepo}/pulls` : undefined,
   })

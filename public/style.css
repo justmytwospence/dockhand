@@ -1175,3 +1175,15 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   font-weight: 400;
   margin-left: 0.35rem;
 }
+
+/* Where notifications actually land, resolved from policy plus what is configured. */
+.channels {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.channels code {
+  margin-right: 0.25rem;
+}

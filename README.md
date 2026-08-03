@@ -136,7 +136,8 @@ start.
 | `BOT_EMAIL` | no | `dockhand@localhost` | Git author for dockhand's commits. |
 | `DATA_DIR` | no | `/data` | SQLite database and dockhand's own working clone. |
 | `PORT` / `TZ` | no | `8080` / `UTC` | |
-| `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN` | no | — | Push notifications. Unset means no notifications. |
+| `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN` | no | — | Push notifications. |
+| `SMTP_URL`, `MAIL_TO` | no | — | Email. Both are needed; either alone counts as off. `MAIL_FROM` defaults to `BOT_EMAIL`. |
 | `DOCKER_HUB_LOGIN` / `_PASSWORD` | no | — | Doubles the Docker Hub pull allowance (100→200 per 6h). |
 
 Start it with nothing set and it will tell you what is missing rather than crash-loop.
@@ -256,6 +257,11 @@ claude:
     searches: 4
     fetches: 5
     content_tokens: 12000
+notify:
+  routine: digest             # digest | immediate | off
+  cron: "0 0 8 * * *"         # when the digest goes out; empty ones are never sent
+  ntfy: all                   # all | alerts | routine | off
+  email: all                  # ...per channel, so push and mail can differ
 merge:
   auto: false                 # the only unattended write path. Off.
   max_per_run: 3
@@ -274,6 +280,33 @@ scan:
 patches itself — dockhand then takes only what such a tool leaves alone (majors, digest
 pins, anything not on the auto tier), so the two can never write to the same file for
 the same reason. Use `full` when dockhand is your only updater.
+
+### Notifications
+
+Two kinds of message, and which is which is **not** configurable:
+
+- **Alerts** — a deploy failed, a service came up unhealthy, sync is stuck on a conflict.
+  Something is wrong now. These always send immediately.
+- **Routine** — a pull request opened, one merged, a deploy succeeded, a verdict held
+  something back. These batch into one digest per schedule.
+
+So turning digests on can delay a success and can never hide a failure. That guarantee is
+worth more than the flexibility of batching everything, which is why there is no setting
+for it.
+
+Each channel then says what it wants — `all`, `alerts`, `routine`, or `off` — so the
+useful split is one line each:
+
+```yaml
+notify:
+  ntfy: alerts     # the phone buzzes only for what broke
+  email: routine   # the summary arrives in the inbox
+```
+
+An emailed digest carries a link per item, which a push cannot: ntfy has one click target
+for the whole message. A channel with no credentials is skipped whatever policy says, and
+the Settings page shows where messages actually land plus a button that sends a test
+email and reports the server's own error.
 
 ### One-time repository settings
 

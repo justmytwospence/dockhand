@@ -350,8 +350,49 @@ export const DigestPreview: FC<{
   rows: { at: string }[]
   message: { title: string; body: string } | null
   policy: Policy
-}> = ({ rows, message, policy }) => (
+  channels: { alert: string[]; routine: string[] }
+  emailConfigured: boolean
+}> = ({ rows, message, policy, channels, emailConfigured }) => (
   <>
+    {/* Where things actually go, resolved rather than restated: a channel can be set to
+        `all` and still be silent because it has no credentials, and that gap is exactly
+        what makes people think notifications are broken. */}
+    <p class="sub channels">
+      <span>
+        Alerts &rarr;{' '}
+        {channels.alert.length ? (
+          channels.alert.map((c) => <code>{c}</code>)
+        ) : (
+          <span class="warn-text">nowhere</span>
+        )}
+      </span>
+      <span>
+        Routine &rarr;{' '}
+        {channels.routine.length ? (
+          channels.routine.map((c) => <code>{c}</code>)
+        ) : (
+          <span class="warn-text">nowhere</span>
+        )}
+      </span>
+      {emailConfigured ? (
+        <button
+          type="button"
+          class="linkish"
+          hx-post="/settings/email/test"
+          hx-target="#email-test-status"
+          hx-swap="innerHTML"
+          hx-disabled-elt="this"
+        >
+          Send a test email
+        </button>
+      ) : (
+        <span class="sub">
+          email is off &mdash; set <code>SMTP_URL</code> and <code>MAIL_TO</code>
+        </span>
+      )}
+      <span id="email-test-status" class="sub"></span>
+    </p>
+
     {policy.notify.routine !== 'digest' && (
       <Banner kind="info">
         Routine outcomes are set to <code>{policy.notify.routine}</code>, so no digest is
