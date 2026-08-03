@@ -5,6 +5,7 @@ import { canAutoMerge, foldGroupMagnitude, foldGroupTier, tierFor } from '../pol
 import { scanRepo } from '../compose/scan.ts'
 import type { Magnitude } from '../versions/patterns.ts'
 import { assess, type ResolutionTier } from '../policy/model-tier.ts'
+import { normaliseSourceUrl } from '../resolver/index.ts'
 
 /**
  * Merging what policy already allows, without a human.
@@ -42,6 +43,9 @@ export interface MergeDecision {
   merge: boolean
   reason: string
 }
+
+/** Last shadow-mode conclusion logged per pull request, so a steady state stays quiet. */
+const shadowLogged = new Map<number, string>()
 
 interface Candidate {
   id: number
@@ -100,15 +104,23 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
   // Tier is re-derived from the compose files rather than read from the update row, so
   // a label added since the pull request opened takes effect.
   const services = scanRepo(env.repoDir, policy.exclude_stacks)
-  const tiers = rows.map((r) => {
-    const svc = services.find((s) => s.stack === r.stack && s.service === r.service)
-    return tierFor({
+  const svcFor = (r: { stack: string; service: string }) =>
+    services.find((s) => s.stack === r.stack && s.service === r.service)
+  const tiers = rows.map((r) =>
+    tierFor({
       magnitude: r.magnitude,
-      policyLabel: svc?.policyLabel ?? null,
-      prLabel: svc?.prLabel ?? null,
+      policyLabel: svcFor(r)?.policyLabel ?? null,
+      prLabel: svcFor(r)?.prLabel ?? null,
       defaults: policy.defaults,
-    })
-  })
+    }),
+  )
+
+  // `dockhand.claude: required` flips a service to fail-closed: rather than falling back
+  // to static policy when no verdict exists, it stalls. This was previously hardcoded
+  // false here, which made the label parse, store, and render while changing nothing --
+  // the most expensive kind of inert, because the operator believes they opted in.
+  // One required member is enough: a group is only as merge-able as its strictest.
+  const claudeRequired = rows.some((r) => svcFor(r)?.claudeLabel === 'required')
 
   // The group is only as mergeable as its most conservative member.
   const worstVerdict = rows.reduce<{ rec: string; conf: string }>(
@@ -127,7 +139,23 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     // The one place the model's judgement can raise rather than lower a tier. Every
     // guard must pass; anything else falls back to what static policy alone would say,
     // which for a major is a human.
-    tier = resolveModelTier(rows, policy, number)
+    //
+    // The `linked` guard asks how the upstream repository was identified, and the
+    // resolution cache cannot answer for a service whose upstream is known only from a
+    // `dockhand.source` label -- resolveSource short-circuits on the label and never
+    // writes a row. So the label is folded in here, where the compose files are already
+    // in hand, rather than left to make the guard quietly unsatisfiable.
+    tier = resolveModelTier(
+      rows.map((r) => {
+        const label = svcFor(r)?.sourceLabel
+        const fromLabel = label ? normaliseSourceUrl(label) : null
+        return fromLabel
+          ? { ...r, resolution_tier: 'label', source_url: fromLabel }
+          : r
+      }),
+      policy,
+      number,
+    )
   }
 
   const d = canAutoMerge({
@@ -135,7 +163,7 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     magnitude: foldGroupMagnitude(rows.map((r) => r.magnitude)),
     verdict: worstVerdict.rec as never,
     confidence: worstVerdict.conf as never,
-    claudeRequired: false,
+    claudeRequired,
     claudeMode: policy.claude.mode,
     minConfidence: policy.claude.min_confidence,
     prScope: 'tag-only',
@@ -191,6 +219,26 @@ function resolveModelTier(
     if (!a.promote && allPromote) firstRefusal = `${r.service}: ${a.reason}`
     allPromote &&= a.promote
 
+    // The decision is re-derived on every poll cycle, but only a *change* is worth a
+    // row: without this the table grows one entry per minute per open model-tier pull
+    // request, and the System page's track record becomes the same verdict restated a
+    // thousand times rather than a history of judgements.
+    const last = db
+      .prepare(
+        `SELECT promote, reason, enforced FROM model_tier_decisions
+         WHERE image = ? AND stack = ? AND service = ? AND from_tag IS ? AND to_tag IS ?
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get(r.image ?? '', r.stack, r.service, r.from_tag ?? null, r.to_tag ?? null) as
+      | { promote: number; reason: string; enforced: number }
+      | undefined
+    const unchanged =
+      last !== undefined &&
+      last.promote === (a.promote ? 1 : 0) &&
+      last.reason === a.reason &&
+      last.enforced === (mode === 'enforce' ? 1 : 0)
+    if (unchanged) continue
+
     db.prepare(
       `INSERT INTO model_tier_decisions
          (image, stack, service, from_tag, to_tag, magnitude, static_tier,
@@ -213,19 +261,25 @@ function resolveModelTier(
   }
 
   if (mode === 'shadow') {
-    logEvent({
-      level: 'info',
-      kind: 'pr',
-      message: `#${number}: model would ${allPromote ? 'treat this as routine' : 'defer to a human'}`,
-      detail: `${firstRefusal} — shadow mode, nothing acted on it`,
-    })
+    // Once per distinct conclusion, for the same reason the row above is: this runs
+    // every poll cycle and the answer rarely changes.
+    const key = `${number}:${allPromote}:${firstRefusal}`
+    if (shadowLogged.get(number) !== key) {
+      shadowLogged.set(number, key)
+      logEvent({
+        level: 'info',
+        kind: 'pr',
+        message: `#${number}: model would ${allPromote ? 'treat this as routine' : 'defer to a human'}`,
+        detail: `${firstRefusal} — shadow mode, nothing acted on it`,
+      })
+    }
     return fallbackTier()
   }
 
   return allPromote ? 'auto' : fallbackTier()
 }
 
-type EffectiveTierResolved = 'auto' | 'gated' | 'manual' | 'held' | 'skip'
+type EffectiveTierResolved = 'auto' | 'manual' | 'held' | 'skip'
 
 /**
  * Where a refused update lands.

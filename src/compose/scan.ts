@@ -36,6 +36,8 @@ export interface ScannedService {
   deployLabel: string | null
   /** `dockhand.pr: on-request` -- detected but never auto-PR'd; the operator opens it. */
   prLabel: string | null
+  /** `dockhand.propose` -- how far a drafted config change may reach. See propose/paths. */
+  proposeLabel: string | null
   /** `dockhand.group: <name>` -- forces services into one PR when the heuristic misses. */
   groupLabel: string | null
   /** wud.* equivalents, used by the migration script and the parity report. */
@@ -133,6 +135,7 @@ export function scanComposeFile(repoRoot: string, file: string, excludeStacks: s
     const claudeLabel = labels['dockhand.claude'] ?? null
     const deployLabel = labels['dockhand.deploy'] ?? null
     const prLabel = labels['dockhand.pr'] ?? null
+    const proposeLabel = labels['dockhand.propose'] ?? null
     const groupLabel = labels['dockhand.group'] ?? null
     const watchLabel = labels['dockhand.watch'] ?? null
 
@@ -167,6 +170,7 @@ export function scanComposeFile(repoRoot: string, file: string, excludeStacks: s
       claudeLabel,
       deployLabel,
       prLabel,
+      proposeLabel,
       groupLabel,
       wud: {
         watch: labels['wud.watch'] ?? null,

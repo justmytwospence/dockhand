@@ -115,7 +115,7 @@ function pickCandidate(mode: string, only?: number): Candidate | null {
   const services = scanRepo(env.repoDir, loadPolicy().policy.exclude_stacks)
   for (const r of rows) {
     const svc = services.find((s) => s.stack === r.stack && s.service === r.service)
-    if (scopeFor(svc?.labels['dockhand.propose']) === 'none') continue
+    if (scopeFor(svc?.proposeLabel) === 'none') continue
 
     if (only !== undefined) return r
 
@@ -171,9 +171,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
     // the pull request opened takes effect.
     const services = scanRepo(env.repoDir, loadPolicy().policy.exclude_stacks)
     const scope = scopeFor(
-      services.find((s) => s.stack === c.stack && s.service === c.service)?.labels[
-        'dockhand.propose'
-      ],
+      services.find((s) => s.stack === c.stack && s.service === c.service)?.proposeLabel,
     )
     const siblings = services
       .filter((s) => s.stack === c.stack && s.composeFile === c.composeFile)
