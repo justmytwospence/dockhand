@@ -67,12 +67,36 @@ export const Table: FC<PropsWithChildren<{ kv?: boolean }>> = ({ kv, children })
 )
 
 export const Empty: FC<{ children?: unknown }> = ({ children }) => (
-  <p class="empty">{children}</p>
+  <p class="nothing">{children}</p>
+)
+
+/**
+ * How many columns each table has, so a row fragment can span all of them.
+ *
+ * These fragments are returned from the server as replacements for a `<tr>` that has
+ * already been rendered somewhere else, which means the column count has to be stated
+ * twice and the two statements are hundreds of lines apart. It was wrong: the images
+ * 404 row claimed six columns for a five-column table. Naming the counts here is what
+ * lets a test compare them against the tables that define them.
+ */
+export const COLUMNS = { pending: 6, images: 5 } as const
+
+/** A full-width note replacing a table row -- "dismissed", "no such service". */
+export const RowNote: FC<{ cols: number; cls?: string; children?: unknown }> = ({
+  cols,
+  cls,
+  children,
+}) => (
+  <tr class={cls}>
+    <td colspan={cols} class="sub">
+      {children}
+    </td>
+  </tr>
 )
 
 /** Shown until dockhand knows which repository to watch. */
 const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
-  <div class="banner warn setup">
+  <div class="banner warn">
     <strong>dockhand is not configured yet.</strong>
     <p>Set the following, then restart the container:</p>
     <table class="kv">

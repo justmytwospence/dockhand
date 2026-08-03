@@ -36,7 +36,7 @@ export const DiffView: FC<{
           {h.lines.map((l) => (
             <div class={`dl ${l.kind}`}>
               <span class="ln">{l.no ?? ''}</span>
-              <span class="mark">{MARK[l.kind]}</span>
+              <span class="sign">{MARK[l.kind]}</span>
               <span class="txt">{l.text}</span>
             </div>
           ))}
@@ -72,7 +72,7 @@ export const DiffView: FC<{
             {h.lines.map((l) => (
               <div class={`dl ${l.kind}`}>
                 <span class="ln">{l.no ?? ''}</span>
-                <span class="mark">{MARK[l.kind]}</span>
+                <span class="sign">{MARK[l.kind]}</span>
                 <span class="txt">{l.text}</span>
               </div>
             ))}

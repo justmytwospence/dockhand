@@ -236,9 +236,9 @@ export const SystemPage: FC<{
                   <span class="pill ok">healthy</span>
                 ) : d.ok ? (
                   // Started but not healthy is the one that looks fine and is not.
-                  <span class="pill error">unhealthy</span>
+                  <span class="pill err">unhealthy</span>
                 ) : (
-                  <span class="pill error">failed</span>
+                  <span class="pill err">failed</span>
                 )}{' '}
                 <span class="sub">{d.detail}</span>
               </td>

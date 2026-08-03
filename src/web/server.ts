@@ -22,6 +22,7 @@ import {
 } from './views/dashboard.tsx'
 import { DiffView } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
+import { COLUMNS, RowNote } from './views/layout.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
 import { SettingsPage, SettingsForm, RawPolicy, DigestPreview, PromptEditorFragment } from './views/settings.tsx'
 import { AboutPage } from './views/about.tsx'
@@ -178,7 +179,9 @@ export function createApp(): Hono {
          WHERE id = ? AND state IN ('detected','held')`,
       )
       .run(new Date().toISOString(), id)
-    return c.html('<tr class="dismissed"><td colspan="6" class="sub">dismissed</td></tr>')
+    return c.html(
+      RowNote({ cols: COLUMNS.pending, cls: 'dismissed', children: 'dismissed' }) as string,
+    )
   })
 
   /**
@@ -192,7 +195,7 @@ export function createApp(): Hono {
       .prepare(`SELECT stack, service FROM updates WHERE id = ? AND state = 'held'`)
       .get(id) as { stack: string; service: string } | undefined
     if (!row) {
-      return c.html('<tr><td colspan="6" class="sub">no longer held</td></tr>')
+      return c.html(RowNote({ cols: COLUMNS.pending, children: 'no longer held' }) as string)
     }
     getDb()
       .prepare(
@@ -207,7 +210,10 @@ export function createApp(): Hono {
       message: 'held update released for PR by operator',
     })
     return c.html(
-      '<tr><td colspan="6" class="sub">queued &mdash; a PR opens on the next cycle</td></tr>',
+      RowNote({
+        cols: COLUMNS.pending,
+        children: 'queued \u2014 a PR opens on the next cycle',
+      }) as string,
     )
   })
 
@@ -272,7 +278,11 @@ export function createApp(): Hono {
     const svc = scanRepo(env.repoDir, policy.exclude_stacks).find(
       (s) => s.stack === stack && s.service === service,
     )
-    if (!svc) return c.html('<tr><td colspan="6" class="sub">no such service</td></tr>', 404)
+    // Five columns, not six: this row lands in the images table, which has no
+    // Analysis or PR column. It claimed six for months.
+    if (!svc) {
+      return c.html(RowNote({ cols: COLUMNS.images, children: 'no such service' }) as string, 404)
+    }
     if (svc.watched) await scanOne(svc, policy)
     return c.html(
       ImageRow({ svc, status: statuses().get(`${stack}/${service}`), grouped }) as string,

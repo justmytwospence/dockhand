@@ -404,7 +404,7 @@ export const DigestPreview: FC<{
     {message ? (
       <>
         <div class="table-wrap">
-          <pre class="rawfile digest">
+          <pre class="rawfile">
             {message.title}
             {'\n\n'}
             {message.body}
@@ -426,7 +426,7 @@ export const DigestPreview: FC<{
         </div>
       </>
     ) : (
-      <p class="empty">
+      <p class="nothing">
         Nothing waiting. An empty digest is never sent &mdash; a scheduled &ldquo;0
         things&rdquo; push is how a person learns to ignore the channel.
       </p>

@@ -1,0 +1,103 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { renderAll, classesOf } from './fixtures.tsx'
+
+/**
+ * Structural facts about the rendered UI, and regression cover for a batch of bugs that
+ * were all the same shape: a class emitted by a view that no rule ever matched. None of
+ * them threw, none showed up in a type check, and the only symptom was something quietly
+ * looking wrong -- an uncoloured failure badge, a left-aligned money column.
+ *
+ * So every class the markup uses is asserted to exist in the stylesheet.
+ */
+
+const R = renderAll()
+const CSS = readFileSync(new URL('../../public/style.css', import.meta.url), 'utf8')
+
+/**
+ * Class names with deliberately no rule of their own.
+ *   active -- state, always used in a compound selector
+ *   ctx    -- the unchanged diff line, which is `.dl` with nothing added
+ */
+const NOT_OURS = new Set(['active', 'ctx'])
+
+test('every class the views emit is defined in the stylesheet', () => {
+  const used = new Set<string>()
+  for (const html of Object.values(R)) {
+    for (const attr of classesOf(html)) {
+      for (const c of attr.split(/\s+/).filter(Boolean)) used.add(c)
+    }
+  }
+  const undefinedClasses = [...used]
+    .filter((c) => !NOT_OURS.has(c))
+    .filter((c) => !new RegExp(`\\.${c.replace(/[-]/g, '\\-')}(?![\\w-])`).test(CSS))
+    .sort()
+  assert.deepEqual(undefinedClasses, [], `classes with no CSS rule: ${undefinedClasses.join(', ')}`)
+})
+
+test('failure badges are coloured', () => {
+  // `pill error` was emitted for months; only `.pill.err` exists, so the single status
+  // you most need to notice rendered in plain body colour.
+  assert.match(R.system!, /class="pill err">unhealthy/)
+  assert.match(R.system!, /class="pill err">failed/)
+  assert.doesNotMatch(R.system!, /class="pill error"/)
+})
+
+test('.sub is not element-qualified, so spans and cells get it too', () => {
+  assert.match(CSS, /^\.sub \{/m)
+  // The server emits several of these as raw HTML far from any <p>.
+  assert.match(R.pending!, /<span class="sub"/)
+})
+
+test('numeric table cells are right-aligned and tabular', () => {
+  assert.match(CSS, /^th\.num,\s*\ntd\.num \{/m)
+  assert.match(R.system!, /class="num"/)
+})
+
+test('the monospace token exists, since the stylesheet dereferences it', () => {
+  assert.match(CSS, /--mono:/)
+  assert.doesNotMatch(CSS, /font-family: ui-monospace/)
+})
+
+test('no class collides with a bare Tabler/Bootstrap selector', () => {
+  // Tabler defines `.mark,mark{background:highlight}` and a centred, 3rem-padded
+  // `.empty`. Both would restyle our markup the moment the framework loads, with no
+  // change to any of our files -- so neither name is used any more.
+  for (const html of Object.values(R)) {
+    assert.doesNotMatch(html, /class="[^"]*\bmark\b[^"]*"/)
+    assert.doesNotMatch(html, /class="[^"]*\bempty\b[^"]*"/)
+  }
+  assert.match(R.diff!, /class="sign"/)
+  assert.match(R['activity-table']!, /class="nothing"/)
+})
+
+test('the diff viewer renders a line per hunk line, with its gutter', () => {
+  assert.match(R.diff!, /<div class="dl ctx">/)
+  assert.match(R.diff!, /<div class="dl del">/)
+  assert.match(R.diff!, /<div class="dl add">/)
+  assert.match(R.diff!, /<span class="ln">/)
+  assert.match(R.diff!, /<span class="txt">/)
+})
+
+test('activity kind chips carry their colour as an inline custom property', () => {
+  // The one place inline style is load-bearing: `--k` selects from the --k-* palette,
+  // and the chip and its dot both read it.
+  assert.match(R.activity!, /style="--k: var\(--k-pr[^"]*\)"/)
+  assert.match(R.activity!, /<span class="kdot">/)
+})
+
+test('every page is a complete document and names itself', () => {
+  for (const key of ['dashboard', 'images', 'activity', 'settings', 'system', 'about']) {
+    const html = R[key]!
+    assert.match(html, /^<html lang="en">/, key)
+    assert.match(html, /<title>[^<]+ · dockhand<\/title>/, key)
+    assert.match(html, /<meta name="viewport"/, key)
+  }
+})
+
+test('fragments carry no document chrome', () => {
+  for (const key of ['pending', 'images-table', 'image-row', 'settings-form', 'digest-preview', 'diff']) {
+    assert.doesNotMatch(R[key]!, /<html|<head|<body/, key)
+  }
+})

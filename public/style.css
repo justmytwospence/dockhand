@@ -9,6 +9,7 @@
   --error: #a33227;
   --ok: #2f6f57;
   --radius: 6px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   /* One column definition, used by both the top bar and the page body so their
      contents line up on every viewport. */
   --col: 1080px;
@@ -146,11 +147,32 @@ h2:first-of-type {
   margin-top: 1rem;
 }
 
+/* Muted secondary text, on any element. This was `p.sub` for a long time, which meant
+   every <span class="sub"> and <td class="sub"> in the app -- 68 of them, including the
+   ones the server emits as raw HTML -- silently rendered as normal body text. */
+.sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 p.sub,
-p.empty {
+p.nothing {
   color: var(--muted);
   font-size: 0.9rem;
   margin: 0.25rem 0 0.9rem;
+}
+
+/* Numeric table cells. `.tile .num` existed; this did not, so the spend table's
+   figures were left-aligned and not tabular. */
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The service is the identifier you actually read; the stack is context. */
+.svc-name {
+  font-weight: 550;
 }
 
 .filters {
@@ -243,7 +265,7 @@ table.kv th {
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.86em;
   /* Long image refs and digests break rather than forcing a wide scroll. */
   overflow-wrap: anywhere;
@@ -254,7 +276,7 @@ table.kv th {
 }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.86em;
   background: color-mix(in srgb, var(--fg) 7%, transparent);
   padding: 0.08em 0.32em;
@@ -470,7 +492,7 @@ tr.dismissed td {
   border-radius: var(--radius);
   overflow-x: auto;
   background: var(--bg);
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -508,7 +530,7 @@ tr.dismissed td {
   user-select: none;
 }
 
-.dl .mark {
+.dl .sign {
   flex: none;
   width: 1.2em;
   color: var(--muted);
@@ -524,7 +546,7 @@ tr.dismissed td {
   border-left-color: var(--error);
 }
 
-.dl.del .mark {
+.dl.del .sign {
   color: var(--error);
 }
 
@@ -533,7 +555,7 @@ tr.dismissed td {
   border-left-color: var(--ok);
 }
 
-.dl.add .mark {
+.dl.add .sign {
   color: var(--ok);
 }
 
@@ -788,7 +810,7 @@ select:focus,
 .rawfile {
   margin: 0;
   padding: 0.9rem 1.1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.8rem;
   line-height: 1.55;
   white-space: pre;

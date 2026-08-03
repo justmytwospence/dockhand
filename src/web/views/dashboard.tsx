@@ -331,8 +331,20 @@ export const ScanStatus: FC<{ scan: ScanInfo }> = ({ scan }) => {
   if (scan.running) {
     // The id is the poll condition for the pending region -- present only while
     // scanning, so nothing polls at rest.
+    //
+    // outerHTML is load-bearing, not stylistic. htmx defaults to innerHTML, which would
+    // swap the finished status *inside* this span and leave the id in the document
+    // forever -- so both this 3s poll and the dashboard's 10s pending poll would keep
+    // firing until someone reloaded the page. Replacing the element is what lets the
+    // id, and with it both polls, actually stop.
     return (
-      <span class="sub" id="scan-running" hx-get="/scan/status" hx-trigger="every 3s">
+      <span
+        class="sub"
+        id="scan-running"
+        hx-get="/scan/status"
+        hx-trigger="every 3s"
+        hx-swap="outerHTML"
+      >
         scanning&hellip;
       </span>
     )
