@@ -11,7 +11,7 @@ process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'dockhand-test-'))
 const { getDb } = await import('../src/db.ts')
 const { tierFor } = await import('../src/policy.ts')
 
-const DEFAULTS = { patch: 'auto', minor: 'auto', major: 'manual', digest: 'manual', soak: '0h' } as const
+const DEFAULTS = { patch: 'auto', minor: 'auto', major: 'manual', digest: 'manual' } as const
 
 /**
  * These exercise the transition rules that scan.ts implements, against the real schema.
@@ -140,8 +140,8 @@ test('tier assignment matches the policy engine for the real backlog shapes', ()
   assert.equal(t('minor', null, null), 'auto')
   // immich v2.7.5 -> v3.1.0, a major
   assert.equal(t('major', null, null), 'manual')
-  // authelia, gated infra
-  assert.equal(t('minor', 'gated', null), 'gated')
+  // authelia and friends: infrastructure pinned off the auto rung
+  assert.equal(t('minor', 'gated', null), 'manual')
   // postgres sidecar, dashboard-only
   assert.equal(t('major', null, 'on-request'), 'held')
   // bluesky/pds digest pin

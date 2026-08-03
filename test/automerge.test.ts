@@ -24,7 +24,7 @@ test('nothing but a clean tag-only bump on the auto tier merges', () => {
   for (const prScope of ['proposed', 'modified'] as const) {
     assert.equal(canAutoMerge({ ...base, prScope }).merge, false, prScope)
   }
-  for (const tier of ['gated', 'manual', 'held', 'skip'] as const) {
+  for (const tier of ['manual', 'held', 'skip'] as const) {
     assert.equal(canAutoMerge({ ...base, tier }).merge, false, tier)
   }
   for (const magnitude of ['major', 'digest'] as const) {
@@ -52,7 +52,7 @@ test('under coexist, nothing that opens a pull request can auto-merge', () => {
   // what the auto tier excludes, and auto-merge accepts only the auto tier.
   let opened = 0
   let mergeable = 0
-  for (const tier of ['auto', 'gated', 'manual', 'held', 'skip'] as const) {
+  for (const tier of ['auto', 'manual', 'held', 'skip'] as const) {
     for (const magnitude of ['patch', 'minor', 'major', 'digest'] as const) {
       if (!shouldOpenPr({ scope: 'coexist', tier, magnitude, rolling: false })) continue
       opened++

@@ -15,7 +15,6 @@ const DEFAULTS = {
   minor: 'auto',
   major: 'manual',
   digest: 'manual',
-  soak: '0h',
 } as const
 
 const t = (
@@ -28,10 +27,45 @@ test('tierFor: label precedence, first match wins', () => {
   // skip beats everything
   assert.equal(t('patch', 'skip', 'on-request'), 'skip')
   // on-request beats the remaining labels -- this is what makes datastores dashboard-only
-  assert.equal(t('patch', 'gated', 'on-request'), 'held')
+  assert.equal(t('patch', 'manual', 'on-request'), 'held')
   assert.equal(t('major', 'manual', 'on-request'), 'held')
-  assert.equal(t('patch', 'gated'), 'gated')
   assert.equal(t('patch', 'manual'), 'manual')
+})
+
+test('tierFor: on-request is reachable from either label', () => {
+  // The original spelling lives on dockhand.pr; the ladder now also accepts it on
+  // dockhand.policy, so one label can express every rung.
+  assert.equal(t('patch', null, 'on-request'), 'held')
+  assert.equal(t('patch', 'on-request', null), 'held')
+})
+
+test('tierFor: "gated" is an accepted spelling of manual, never its own rung', () => {
+  // It behaved identically to manual in every decision; keeping both was a coin flip
+  // the operator had to remember the result of. Old labels keep working.
+  assert.equal(t('patch', 'gated'), 'manual')
+  assert.equal(t('minor', 'gated'), 'manual')
+  assert.equal(t('patch', 'gated', 'on-request'), 'held')
+  assert.equal(
+    tierFor({
+      magnitude: 'minor',
+      policyLabel: null,
+      prLabel: null,
+      defaults: { ...DEFAULTS, minor: 'gated' as never },
+    }),
+    'manual',
+  )
+})
+
+test('tierFor: an unrecognised label narrows to manual rather than widening', () => {
+  assert.equal(t('patch', 'atuo'), 'manual')
+  assert.equal(t('patch', 'yes-please'), 'manual')
+})
+
+test('tierFor: an explicit auto label cannot talk a major past the line', () => {
+  // `auto` means "no exception here, follow the defaults" -- it is not an override, so
+  // it falls through to the rule that majors always need a human.
+  assert.equal(t('major', 'auto'), 'manual')
+  assert.equal(t('patch', 'auto'), 'auto')
 })
 
 test('tierFor: majors are always manual regardless of defaults', () => {
@@ -57,15 +91,16 @@ test('tierFor: patch and minor follow the defaults; digest has its own default',
       magnitude: 'minor',
       policyLabel: null,
       prLabel: null,
-      defaults: { ...DEFAULTS, minor: 'gated' },
+      defaults: { ...DEFAULTS, minor: 'on-request' },
     }),
-    'gated',
+    'held',
   )
 })
 
 test('foldGroupTier: the most conservative member wins', () => {
   assert.equal(foldGroupTier(['auto', 'auto']), 'auto')
-  assert.equal(foldGroupTier(['auto', 'gated']), 'gated')
+  // rows written before the collapse still say 'gated'; they normalise on the way in
+  assert.equal(foldGroupTier(['auto', 'gated']), 'manual')
   assert.equal(foldGroupTier(['auto', 'manual']), 'manual')
   // one held member holds the whole group
   assert.equal(foldGroupTier(['auto', 'held']), 'held')
@@ -96,7 +131,7 @@ const merge = (over: Partial<Parameters<typeof canAutoMerge>[0]> = {}) =>
 test('canAutoMerge: only the auto tier, only patch/minor', () => {
   assert.equal(merge().merge, true)
   assert.equal(merge({ magnitude: 'minor' }).merge, true)
-  for (const tier of ['gated', 'manual', 'held', 'skip'] as const) {
+  for (const tier of ['manual', 'held', 'skip'] as const) {
     assert.equal(merge({ tier }).merge, false, tier)
   }
   assert.equal(merge({ magnitude: 'major' }).merge, false)
@@ -108,9 +143,9 @@ test('canAutoMerge: Claude can demote but never promote', () => {
   assert.equal(merge({ verdict: 'block' }).merge, false)
   assert.equal(merge({ verdict: 'caution' }).merge, false)
   assert.equal(merge({ verdict: 'approve', confidence: 'low' }).merge, false)
-  // and cannot promote: a confident approval does NOT rescue a major or a gated service
+  // and cannot promote: a confident approval does NOT rescue a major or a review-only service
   assert.equal(merge({ magnitude: 'major', verdict: 'approve', confidence: 'high' }).merge, false)
-  assert.equal(merge({ tier: 'gated', verdict: 'approve', confidence: 'high' }).merge, false)
+  assert.equal(merge({ tier: 'manual', verdict: 'approve', confidence: 'high' }).merge, false)
 })
 
 test('canAutoMerge: labels identify why a merge was withheld', () => {
@@ -151,7 +186,7 @@ test('shouldOpenPr: coexist covers exactly what another updater leaves alone', (
   // dockhand owns everything such a tool would skip
   assert.equal(s({ magnitude: 'major' }), true)
   assert.equal(s({ magnitude: 'digest' }), true)
-  assert.equal(s({ tier: 'gated' }), true)
+  assert.equal(s({ tier: 'manual' }), true)
   assert.equal(s({ tier: 'manual' }), true)
   // held is dashboard-only until the operator clicks through
   assert.equal(s({ tier: 'held', magnitude: 'major' }), false)

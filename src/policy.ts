@@ -16,41 +16,86 @@ export type Verdict = 'approve' | 'caution' | 'block' | 'unavailable'
 export type Confidence = 'low' | 'medium' | 'high'
 
 /**
- * `held` is not a policy the operator writes -- it is what `dockhand.pr: on-request`
- * produces. Held updates are detected, persisted and rendered, but the PR engine never
- * touches them; only an explicit per-service action in the UI promotes one. Datastores
- * live here: a postgres major cannot be applied by bumping the tag at all (the new
- * container refuses the old datadir), so a standing merge-able PR would be a loaded gun.
+ * One ladder, one axis: how much happens without you.
+ *
+ *   skip    -- never look at this service
+ *   auto    -- open a PR and merge it, if the verdict allows
+ *   manual  -- open a PR; you merge it
+ *   held    -- do not even open a PR until you ask
+ *
+ * `model` is not a rung. It is a deferral: the merge path resolves it through
+ * policy/model-tier.ts into `auto` or `manual` once a verdict exists.
+ *
+ * `gated` USED to be a fifth value and was byte-for-byte identical to `manual` in every
+ * decision -- same merge answer, same PR answer, differing only in which word a group
+ * badge showed. Two names for one behaviour is not control, it is a coin flip the
+ * operator has to remember the result of, so it is now an accepted spelling of `manual`
+ * (see `asTier`) rather than a value this module ever produces.
+ *
+ * `held` is not a policy the operator writes directly either -- it is what
+ * `dockhand.pr: on-request` (or the newer `dockhand.policy: on-request`) produces. Held
+ * updates are detected, persisted and rendered, but the PR engine never touches them;
+ * only an explicit per-service action in the UI promotes one. Datastores live here: a
+ * postgres major cannot be applied by bumping the tag at all (the new container refuses
+ * the old datadir), so a standing merge-able PR would be a loaded gun.
  */
-export type EffectiveTier = 'auto' | 'gated' | 'manual' | 'held' | 'skip' | 'model'
+export type EffectiveTier = 'auto' | 'manual' | 'held' | 'skip' | 'model'
+
+/** What an operator may write in `dockhand.policy` or in `defaults.*`. */
+export const TIER_LABELS = ['auto', 'manual', 'on-request', 'skip', 'model'] as const
 
 export interface TierInput {
   magnitude: Magnitude
-  /** `dockhand.policy`: auto | gated | manual | skip | model */
+  /** `dockhand.policy`: auto | manual | on-request | skip | model (| gated, deprecated) */
   policyLabel: string | null
   /** `dockhand.pr`: on-request */
   prLabel: string | null
   defaults: Policy['defaults']
 }
 
+/** Every spelling `dockhand.policy` accepts, including the deprecated one. */
+const KNOWN_LABELS = new Set(['auto', 'manual', 'gated', 'on-request', 'skip', 'model'])
+
+function clean(v: string | null): string | null {
+  const s = v?.trim().toLowerCase()
+  return s ? s : null
+}
+
 /** First match wins. */
 export function tierFor(i: TierInput): EffectiveTier {
-  if (i.policyLabel === 'skip') return 'skip'
-  if (i.prLabel === 'on-request') return 'held'
-  if (i.policyLabel === 'gated') return 'gated'
-  if (i.policyLabel === 'manual') return 'manual'
+  const label = clean(i.policyLabel)
+  const pr = clean(i.prLabel)
+
+  if (label === 'skip') return 'skip'
+  // Both spellings reach the same rung. `dockhand.pr` came first and is kept working;
+  // `dockhand.policy: on-request` is the one to write, because the whole ladder then
+  // lives in one label rather than being split across two that have to be read together.
+  if (pr === 'on-request' || label === 'on-request') return 'held'
+  if (label === 'manual' || label === 'gated') return 'manual'
   // Deferred, not decided: `model` needs a verdict, which tierFor has not got. The
   // merge path resolves it through policy/model-tier.ts and falls back to the static
   // tier -- `manual` for a major -- whenever the guards refuse.
-  if (i.policyLabel === 'model') return 'model'
+  if (label === 'model') return 'model'
+  // A label nobody recognises narrows to a human, and never falls through to the
+  // defaults. Falling through is what it used to do, and it is the wrong direction: a
+  // service the operator meant to pin -- `dockhand.policy: manaul` -- would land on
+  // whatever `defaults.patch` says, which is `auto`. A typo must never grant reach.
+  if (label !== null && !KNOWN_LABELS.has(label)) return 'manual'
+  // `auto` deliberately has no branch of its own: it means "no exception here, follow
+  // the defaults", so it falls through to the magnitude rules below and cannot be used
+  // to talk a major past the line under it.
   // Majors always need a human, whatever the defaults say. Not configurable.
   if (i.magnitude === 'major') return 'manual'
   if (i.magnitude === 'digest') return asTier(i.defaults.digest)
   return asTier(i.defaults[i.magnitude])
 }
 
-function asTier(v: string): EffectiveTier {
-  return v === 'auto' || v === 'gated' || v === 'manual' || v === 'skip' ? v : 'manual'
+/** Anything unrecognised narrows to `manual`: a typo must never grant reach. */
+export function asTier(v: string): EffectiveTier {
+  const s = clean(v) ?? ''
+  if (s === 'gated') return 'manual' // deprecated spelling, folded on read
+  if (s === 'on-request') return 'held'
+  return s === 'auto' || s === 'manual' || s === 'skip' ? s : 'manual'
 }
 
 const TIER_RANK: Record<EffectiveTier, number> = {
@@ -59,20 +104,28 @@ const TIER_RANK: Record<EffectiveTier, number> = {
   // Unresolved sits above auto: a group containing one is never merged on the strength
   // of its other members.
   model: 2,
-  gated: 3,
-  manual: 4,
-  held: 5,
+  manual: 3,
+  held: 4,
 }
 
 /**
  * A grouped PR takes the most conservative tier among its members. One held member
- * holds the whole group; one gated member gates it. `skip` members never join a group
- * in the first place (they produce no update row), so they cannot drag a group down.
+ * holds the whole group. `skip` members never join a group in the first place (they
+ * produce no update row), so they cannot drag a group down.
+ *
+ * Rows written before the `gated` collapse still carry that word, so every value is
+ * normalised on the way in rather than trusted to be current.
  */
-export function foldGroupTier(tiers: EffectiveTier[]): EffectiveTier {
-  const real = tiers.filter((t) => t !== 'skip')
+export function foldGroupTier(tiers: string[]): EffectiveTier {
+  const real = tiers.map(normaliseTier).filter((t) => t !== 'skip')
   if (real.length === 0) return 'skip'
   return real.reduce((a, b) => (TIER_RANK[b] > TIER_RANK[a] ? b : a))
+}
+
+/** A tier read back from the database or a label, mapped onto the current ladder. */
+export function normaliseTier(v: string): EffectiveTier {
+  if (v === 'held' || v === 'model') return v
+  return asTier(v)
 }
 
 const MAGNITUDE_RANK: Record<Magnitude, number> = { digest: 0, patch: 1, minor: 2, major: 3 }

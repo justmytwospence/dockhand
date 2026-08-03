@@ -353,6 +353,20 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     CREATE INDEX idx_mtd_created ON model_tier_decisions(created_at);
   `,
   },
+  {
+    id: '011-collapse-gated',
+    sql: `
+    -- 'gated' was a fifth rung on the policy ladder that behaved in every decision
+    -- exactly like 'manual' -- same merge answer, same PR answer, differing only in
+    -- which word a badge showed. It is now an accepted spelling of 'manual' rather than
+    -- a value anything produces, so stored rows are rewritten to match.
+    --
+    -- Reading code still normalises (policy.ts, normaliseTier) because a row can also
+    -- arrive from a compose label, and a label is not covered by a migration.
+    UPDATE updates SET tier = 'manual' WHERE tier = 'gated';
+    UPDATE model_tier_decisions SET static_tier = 'manual' WHERE static_tier = 'gated';
+  `,
+  },
 ]
 
 function migrate(d: Db): void {

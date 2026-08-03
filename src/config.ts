@@ -94,7 +94,17 @@ export function configured(): { ok: true } | { ok: false; missing: MissingSettin
   return missing.length === 0 ? { ok: true } : { ok: false, missing }
 }
 
-const Tier = z.enum(['auto', 'gated', 'manual', 'skip'])
+/**
+ * One rung of the ladder, as an operator writes it.
+ *
+ * `gated` is accepted and folded to `manual` because it was, in every decision this
+ * codebase makes, exactly `manual` -- see the comment on EffectiveTier. Accepting it
+ * here rather than rejecting it means no existing policy.yaml or compose label breaks
+ * on the day the duplicate went away.
+ */
+const Tier = z
+  .enum(['auto', 'manual', 'on-request', 'skip', 'gated'])
+  .transform((v) => (v === 'gated' ? ('manual' as const) : v))
 export type Tier = z.infer<typeof Tier>
 
 /** "HH:MM-HH:MM", may wrap past midnight. */
@@ -129,8 +139,11 @@ const PolicySchema = z.object({
       // here; the key exists so the intent is legible in the file.
       major: Tier.default('manual'),
       digest: Tier.default('manual'),
-      soak: z.string().default('0h'),
     })
+    // Unknown keys are stripped rather than rejected, so a policy.yaml carrying
+    // `soak:` -- a knob that was declared here for a while and never read by anything --
+    // still loads. It was removed rather than implemented: a setting that silently does
+    // nothing is worse than an absent one, because it looks like control.
     .prefault({}),
   claude: z
     .object({
@@ -208,7 +221,6 @@ const PolicySchema = z.object({
       // manual -- sync only; the notification carries the command to paste
       // off    -- do not even sync
       mode: z.enum(['auto', 'manual', 'off']).default('manual'),
-      serialize: z.boolean().default(true),
       health_window_s: z.number().int().positive().default(120),
     })
     .prefault({}),
@@ -272,11 +284,3 @@ export function inBlackout(policy: Policy, now = new Date()): boolean {
   })
 }
 
-/** "24h", "30m", "2d" -> milliseconds. */
-export function parseDuration(s: string): number {
-  const m = /^(\d+(?:\.\d+)?)\s*(s|m|h|d)$/.exec(s.trim())
-  if (!m) return 0
-  const n = Number(m[1])
-  const unit = m[2] as 's' | 'm' | 'h' | 'd'
-  return n * { s: 1e3, m: 6e4, h: 3.6e6, d: 8.64e7 }[unit]
-}
