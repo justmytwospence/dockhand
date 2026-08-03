@@ -13,7 +13,15 @@ import { renderAll, classesOf } from './fixtures.tsx'
  */
 
 const R = renderAll()
-const CSS = readFileSync(new URL('../../public/style.css', import.meta.url), 'utf8')
+
+/**
+ * Both stylesheets we ship. Checking against the union catches two different mistakes
+ * with one assertion: our own dead classes (which is how `pill error` and `num` hid for
+ * months), and a mistyped Tabler utility, which is otherwise completely silent -- a
+ * misspelled `d-lg-none` just never applies.
+ */
+const APP_CSS = readFileSync(new URL('../../public/style.css', import.meta.url), 'utf8')
+const CSS = APP_CSS + readFileSync(new URL('../../public/tabler.min.css', import.meta.url), 'utf8')
 
 /**
  * Class names with deliberately no rule of their own.
@@ -45,19 +53,19 @@ test('failure badges are coloured', () => {
 })
 
 test('.sub is not element-qualified, so spans and cells get it too', () => {
-  assert.match(CSS, /^\.sub \{/m)
+  assert.match(APP_CSS, /^\.sub \{/m)
   // The server emits several of these as raw HTML far from any <p>.
   assert.match(R.pending!, /<span class="sub"/)
 })
 
 test('numeric table cells are right-aligned and tabular', () => {
-  assert.match(CSS, /^th\.num,\s*\ntd\.num \{/m)
+  assert.match(APP_CSS, /^th\.num,\s*\ntd\.num \{/m)
   assert.match(R.system!, /class="num"/)
 })
 
 test('the monospace token exists, since the stylesheet dereferences it', () => {
-  assert.match(CSS, /--mono:/)
-  assert.doesNotMatch(CSS, /font-family: ui-monospace/)
+  assert.match(APP_CSS, /--mono:/)
+  assert.doesNotMatch(APP_CSS, /font-family: ui-monospace/)
 })
 
 test('no class collides with a bare Tabler/Bootstrap selector', () => {

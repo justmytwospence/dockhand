@@ -1,13 +1,5 @@
 import type { FC, PropsWithChildren } from 'hono/jsx'
-
-const NAV = [
-  ['/', 'Dashboard'],
-  ['/images', 'Images'],
-  ['/activity', 'Activity'],
-  ['/settings', 'Settings'],
-  ['/system', 'System'],
-  ['/about', 'About'],
-] as const
+import { BottomNav, MobileBar, MoreSheet, PageHeader, Sidebar } from './shell.tsx'
 
 export interface MissingSetting {
   name: string
@@ -43,8 +35,18 @@ export const THEME_SCRIPT = `(function(){
 })()`
 
 export const Layout: FC<
-  PropsWithChildren<{ title: string; path: string; missing?: MissingSetting[] }>
-> = ({ title, path, missing, children }) => (
+  PropsWithChildren<{
+    title: string
+    path: string
+    missing?: MissingSetting[]
+    /** Page-header subtitle. Omit for pages that carry their own intro prose. */
+    subtitle?: unknown
+    /** Primary action for this page, rendered at the top right of the header. */
+    actions?: unknown
+    /** Suppress the page header entirely (the About page is its own document). */
+    bare?: boolean
+  }>
+> = ({ title, path, missing, subtitle, actions, bare, children }) => (
   <html lang="en" data-bs-theme="light">
     <head>
       <meta charset="utf-8" />
@@ -68,26 +70,26 @@ export const Layout: FC<
       />
     </head>
     <body>
-      <header class="topbar">
-        {/* Inner wrapper so the bar's border spans the viewport while its contents
-            align to the same column as <main>. */}
-        <div class="bar-inner">
-          <a class="brand" href="/">
-            dockhand
-          </a>
-          <nav>
-            {NAV.map(([href, label]) => (
-              <a href={href} class={path === href ? 'active' : ''}>
-                {label}
-              </a>
-            ))}
-          </nav>
+      <div class="page">
+        {/* The sidebar must be a PRECEDING SIBLING of .page-wrapper: Tabler's shell
+            offset is `.navbar-vertical ~ .page-wrapper { margin-left: 15rem }`. Nesting
+            it, or putting it after, silently loses the gutter and overlaps the content. */}
+        <Sidebar path={path} />
+        <div class="page-wrapper">
+          <MobileBar title={title} />
+          <div class="page-body">
+            <div class="container-xl">
+              {missing && missing.length > 0 && <Setup missing={missing} />}
+              {!bare && <PageHeader title={title} subtitle={subtitle} actions={actions} />}
+              {children}
+            </div>
+          </div>
         </div>
-      </header>
-      <main>
-        {missing && missing.length > 0 && <Setup missing={missing} />}
-        {children}
-      </main>
+        <BottomNav path={path} />
+        {/* Outside every htmx swap target, so a fragment swap can never detach the
+            offcanvas from the button that opens it. */}
+        <MoreSheet path={path} />
+      </div>
     </body>
   </html>
 )

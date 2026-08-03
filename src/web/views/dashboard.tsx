@@ -327,7 +327,16 @@ const Section: FC<{
   </>
 )
 
-export const ScanStatus: FC<{ scan: ScanInfo }> = ({ scan }) => {
+/**
+ * `poll` false renders the same text without the self-refreshing element.
+ *
+ * The More sheet shows scan status too, and `#scan-running` is not decoration -- the
+ * dashboard's pending region keys its 10s poll off `document.getElementById`. Two
+ * elements with that id on one page would double every request and make the "is a scan
+ * running" condition ambiguous, so only the dashboard's copy carries it.
+ */
+export const ScanStatus: FC<{ scan: ScanInfo; poll?: boolean }> = ({ scan, poll = true }) => {
+  if (scan.running && !poll) return <span class="sub">scanning&hellip;</span>
   if (scan.running) {
     // The id is the poll condition for the pending region -- present only while
     // scanning, so nothing polls at rest.

@@ -168,7 +168,10 @@ export function createApp(): Hono {
     return c.html(ScanStatus({ scan: scanInfo() }) as string)
   })
 
-  app.get('/scan/status', (c) => c.html(ScanStatus({ scan: scanInfo() }) as string))
+  /** `?poll=0` for the mobile More sheet -- same text, no self-refreshing id. */
+  app.get('/scan/status', (c) =>
+    c.html(ScanStatus({ scan: scanInfo(), poll: c.req.query('poll') !== '0' }) as string),
+  )
 
   /** Rolling-tag movement acknowledged: nothing to change in git, so just clear it. */
   app.post('/updates/:id/dismiss', (c) => {

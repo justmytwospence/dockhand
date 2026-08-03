@@ -133,74 +133,110 @@ body {
   overflow-x: hidden;
 }
 
-/* ------------------------------------------------------------------ chrome */
+/* ------------------------------------------------------------------ chrome
+ *
+ * The application shell is Tabler's (.page / .navbar-vertical / .page-wrapper). What is
+ * left here is the one thing Tabler has no component for: a bottom tab bar. The old
+ * .topbar / .bar-inner / .brand block and the --col / --gutter column it centred are
+ * gone with it.
+ */
 
-.topbar {
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.bar-inner,
-main {
-  max-width: var(--col);
-  margin: 0 auto;
-  padding-inline: var(--gutter);
-}
-
-.bar-inner {
-  display: flex;
-  align-items: baseline;
-  gap: 1.5rem;
-  padding-block: 0.85rem;
-}
-
-main {
-  padding-block: 1.75rem 4rem;
-}
-
-.brand {
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  text-decoration: none;
-  color: var(--fg);
-  flex: none;
-}
-
-.topbar nav {
-  display: flex;
-  gap: 1.1rem;
-  /* Let the links scroll rather than wrap the bar onto two lines on a phone. */
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.topbar nav::-webkit-scrollbar {
-  display: none;
-}
-
-.topbar nav a,
+/* .filters kept its look; it used to share these rules with the top nav. */
 .filters a {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.92rem;
   white-space: nowrap;
-  /* Comfortable tap target without visually enlarging the bar. */
   padding-block: 0.35rem;
 }
 
-.topbar nav a.active,
 .filters a.active {
   color: var(--fg);
   font-weight: 550;
 }
 
-.topbar nav a:hover,
 .filters a:hover {
   color: var(--fg);
+}
+
+/* Mobile navigation. Five equal targets pinned to the bottom of the viewport, which is
+   the single change that makes this read as an app rather than a page: the four things
+   you do most are one thumb-reach away instead of two taps behind a menu.
+   Owns the bottom safe area on a notched phone -- env() is 0 without viewport-fit=cover
+   in the viewport meta, which layout.tsx sets. */
+.bottom-nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1030; /* Bootstrap's .fixed-bottom, so modals and offcanvas still win */
+  display: flex;
+  background: var(--tblr-bg-surface);
+  border-top: 1px solid var(--tblr-border-color);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-nav > a,
+.bottom-nav > button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 3.25rem; /* >= the 44px minimum tap target */
+  padding: 0.35rem 0.25rem;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  color: var(--tblr-secondary-color);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.bottom-nav > .active {
+  color: var(--tblr-primary);
+}
+
+.bottom-nav > :active {
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.bottom-nav span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+  /* Content clears the bar, and the settings save bar sits ON it rather than under it --
+     .sticky-save pins to bottom: 0, which is now exactly where the tab bar lives. */
+  .page-body {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0));
+  }
+
+  .scanbar.sticky-save {
+    bottom: calc(3.25rem + env(safe-area-inset-bottom, 0));
+  }
+}
+
+/* auto / light / dark. The current one is filled in by CSS alone, keyed off the
+   attribute the resolver script writes, so there is no state to sync in JS. */
+.theme-toggle .btn {
+  color: var(--tblr-secondary-color);
+  padding: 0.25rem 0.5rem;
+}
+
+.theme-toggle .btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 /* ------------------------------------------------------------------ text */
@@ -426,11 +462,6 @@ code {
     font-size: 14px;
   }
 
-  .bar-inner {
-    gap: 1rem;
-    padding-block: 0.7rem;
-  }
-
   main {
     padding-block: 1.25rem 3rem;
   }
@@ -457,12 +488,6 @@ code {
   table.kv th {
     width: auto;
     min-width: 130px;
-  }
-}
-
-@media (max-width: 420px) {
-  .brand {
-    font-size: 0.95rem;
   }
 }
 

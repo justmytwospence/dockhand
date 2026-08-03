@@ -94,3 +94,34 @@ test('contract 5b: #settings-form is declared by the page, not by the form it wr
   assert.match(R.settings!, /id="settings-form"/)
   assert.doesNotMatch(R['settings-form']!, /id="settings-form"/)
 })
+
+test('contract 4c: only one element ever carries the scan-running id', () => {
+  // The More sheet shows scan status too. Two #scan-running elements would double every
+  // poll and make "is a scan running" ambiguous, so its copy asks for ?poll=0.
+  const page = String(renderAll({ running: true }).dashboard)
+  assert.equal((page.match(/id="scan-running"/g) ?? []).length, 1)
+  assert.match(page, /hx-get="\/scan\/status\?poll=0"/)
+})
+
+test('the shell keys its two navigations to the same breakpoint', () => {
+  // Complementary by construction: there must be no width where both the sidebar and
+  // the tab bar show, or where neither does.
+  assert.match(R.layout!, /<aside class="[^"]*\bd-none d-lg-flex\b/)
+  assert.match(R.layout!, /<nav class="bottom-nav d-lg-none"/)
+  assert.match(R.layout!, /<header class="[^"]*\bd-lg-none\b/)
+})
+
+test('the sidebar precedes the page wrapper, which is what offsets the content', () => {
+  // Tabler's shell offset is a sibling combinator: `.navbar-vertical ~ .page-wrapper`.
+  // Nest the aside, or put it after, and the gutter silently vanishes.
+  const aside = R.layout!.indexOf('<aside')
+  const wrapper = R.layout!.indexOf('<div class="page-wrapper">')
+  const asideEnd = R.layout!.indexOf('</aside>')
+  assert.ok(aside > -1 && wrapper > asideEnd, 'aside must be a preceding sibling')
+})
+
+test('the bottom bar has five equal targets', () => {
+  const nav = /<nav class="bottom-nav[^>]*>([\s\S]*?)<\/nav>/.exec(R.layout!)![1]!
+  assert.equal((nav.match(/<a |<button /g) ?? []).length, 5)
+  assert.match(nav, /data-bs-target="#more-sheet"/)
+})
