@@ -152,3 +152,73 @@ export const DiffView: FC<{
     </p>
   </>
 )
+
+export interface DetailRow {
+  stack: string
+  service: string
+  from_tag: string
+  to_tag: string
+  magnitude: string
+  tier: string
+  state: string
+  recommendation: string | null
+  confidence: string | null
+  pr_number: number | null
+  pr_scope: string | null
+}
+
+const MAG: Record<string, string> = { major: 'err', minor: 'warn', patch: 'muted', digest: 'muted' }
+const VERDICT_CLS: Record<string, string> = { approve: 'ok', caution: 'warn', block: 'err' }
+
+/** Digest refs are unreadable at full length; keep the tag and 12 hex. */
+const short = (r: string) => {
+  const at = r.indexOf('@sha256:')
+  return at === -1 ? r : `${r.slice(0, at)}@${r.slice(at + 8, at + 20)}`
+}
+
+/**
+ * What the drawer shows.
+ *
+ * The diff used to live inside the table row, so the row itself said which service and
+ * which versions you were looking at. In a panel that context has to travel with it --
+ * without this header the drawer is a diff with no subject.
+ */
+export const DetailPanel: FC<{ row: DetailRow; repo: string; diff: string }> = ({
+  row,
+  repo,
+  diff,
+}) => (
+  <>
+    <div class="detail-head">
+      <div class="detail-service">
+        <span class="svc-stack">{row.stack}</span>
+        <span class="svc-name">{row.service}</span>
+      </div>
+      <div class="mono detail-versions">
+        {short(row.from_tag)} <span class="sub">&rarr;</span> {short(row.to_tag)}
+      </div>
+      <div class="detail-pills">
+        <span class={`pill ${MAG[row.magnitude] ?? 'muted'}`}>{row.magnitude}</span>
+        <span class="pill muted">{row.tier}</span>
+        {row.recommendation && VERDICT_CLS[row.recommendation] ? (
+          <span class={`pill ${VERDICT_CLS[row.recommendation]}`}>
+            {row.recommendation}
+            {row.confidence ? ` · ${row.confidence}` : ''}
+          </span>
+        ) : null}
+        {row.pr_number ? (
+          <a
+            class="ext"
+            href={`https://github.com/${repo}/pull/${row.pr_number}`}
+            target="_blank"
+            rel="noopener"
+          >
+            #{row.pr_number} &#8599;
+          </a>
+        ) : null}
+      </div>
+    </div>
+    {/* Already-rendered HTML from the shared builder; raw because it is ours. */}
+    <div dangerouslySetInnerHTML={{ __html: diff }} />
+  </>
+)

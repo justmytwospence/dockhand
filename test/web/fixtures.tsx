@@ -6,7 +6,7 @@ import { ActivityPage, ActivityTable } from '../../src/web/views/activity.tsx'
 import { SettingsPage, SettingsForm, PromptEditorFragment, DigestPreview, RawPolicy } from '../../src/web/views/settings.tsx'
 import { SystemPage } from '../../src/web/views/system.tsx'
 import { AboutPage } from '../../src/web/views/about.tsx'
-import { DiffView } from '../../src/web/views/diff.tsx'
+import { DiffView, DetailPanel } from '../../src/web/views/diff.tsx'
 import type { ScannedService } from '../../src/compose/scan.ts'
 
 /**
@@ -91,6 +91,19 @@ export function renderAll(opts: { running?: boolean } = {}): Record<string, stri
       }),
     ),
     pending: String(PendingSections({ pending: PENDING, repo: 'o/r' })),
+    // The bucket that carries a row action, which the default one does not.
+    'pending-held': String(PendingSections({ pending: PENDING, repo: 'o/r', bucket: 'held' })),
+    'detail-panel': String(
+      DetailPanel({
+        row: {
+          stack: 'demo', service: 'svc', from_tag: '1.0.0', to_tag: '1.1.0',
+          magnitude: 'minor', tier: 'manual', state: 'pr_open',
+          recommendation: 'approve', confidence: 'high', pr_number: 7, pr_scope: 'tag-only',
+        },
+        repo: 'o/r',
+        diff: '<div class="diff">stub</div>',
+      }),
+    ),
     'scan-status': String(ScanStatus({ scan })),
     images: String(ImagesPage({ services: [SERVICE], filter: 'all', q: '', grouped: false, statusMap })),
     'images-grouped': String(ImagesPage({ services: [SERVICE], filter: 'all', q: '', grouped: true, statusMap })),

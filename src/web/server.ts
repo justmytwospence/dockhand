@@ -21,7 +21,7 @@ import {
   type PendingRow,
   type ScanInfo,
 } from './views/dashboard.tsx'
-import { DiffView } from './views/diff.tsx'
+import { DiffView, DetailPanel, type DetailRow } from './views/diff.tsx'
 import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/images.tsx'
 import { COLUMNS, RowNote } from './views/layout.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
@@ -105,74 +105,46 @@ export function createApp(): Hono {
   /** The pending region alone, so it can refresh itself while a scan runs. */
   app.get('/fragments/pending', (c) => {
     const scopeFilter = c.req.query('prscope') ?? 'all'
+    // Which tab is open travels with the request, so the 10s scan poll re-renders the
+    // bucket you are actually looking at rather than snapping back to the first one.
+    const bucket = c.req.query('bucket') ?? 'review'
     const pending = filterByScope(
       getDb().prepare(PENDING_SQL).all() as PendingRow[],
       scopeFilter,
     )
     return c.html(
-      PendingSections({ pending, repo: env.githubRepo, scopeFilter }) as string,
+      PendingSections({ pending, repo: env.githubRepo, scopeFilter, bucket }) as string,
     )
   })
 
-  /** The exact one-line change a PR would make, rendered on first expand. */
-  app.get('/updates/:id/diff', (c) => {
-    const id = Number(c.req.param('id'))
-    const result = buildUpdateDiff(id)
-    const db = getDb()
-    const pr = db
-      .prepare(
-        `SELECT p.number, p.scope FROM prs p JOIN pr_updates pu ON pu.pr_id = p.id
-         WHERE pu.update_id = ? AND p.state = 'open'`,
-      )
-      .get(id) as { number: number; scope: string } | undefined
+  /** The diff on its own. Kept alongside /detail; both call the same builder. */
+  app.get('/updates/:id/diff', (c) => c.html(diffFragment(Number(c.req.param('id')))))
 
-    // Links point at the TARGET tag: this panel is where the merge decision happens.
-    const row = db
+  /**
+   * The detail drawer's contents: the diff, plus the context the row used to supply.
+   *
+   * Same fragment builder as /updates/:id/diff -- that endpoint stays, because it is
+   * still the honest "just the diff" view and is cheap to keep. This one adds the
+   * header (service, version change, magnitude, verdict) that a panel needs when it is
+   * no longer physically attached to the row that described it.
+   */
+  app.get('/updates/:id/detail', (c) => {
+    const id = Number(c.req.param('id'))
+    const row = getDb()
       .prepare(
-        `SELECT u.image, u.to_tag, r.source_url FROM updates u
-         JOIN images i ON i.stack = u.stack AND i.service = u.service
-         LEFT JOIN resolutions r ON r.registry = i.registry AND r.repository = i.repository
+        `SELECT u.stack, u.service, u.from_tag, u.to_tag, u.magnitude, u.tier, u.state,
+                v.recommendation, v.confidence, p.number AS pr_number, p.scope AS pr_scope
+         FROM updates u
+         LEFT JOIN pr_updates pu ON pu.update_id = u.id
+         LEFT JOIN prs p ON p.id = pu.pr_id AND p.state = 'open'
+         LEFT JOIN verdicts v ON v.image = u.image AND v.from_tag = u.from_tag
+                             AND v.to_tag = u.to_tag AND v.error IS NULL
          WHERE u.id = ?`,
       )
-      .get(id) as { image: string; to_tag: string; source_url: string | null } | undefined
-
-    const proposal = pr
-      ? (db
-          .prepare(
-            `SELECT summary, notes, changed, error, model, hunks FROM proposals
-             WHERE pr_id = (SELECT id FROM prs WHERE number = ?) ORDER BY id DESC LIMIT 1`,
-          )
-          .get(pr.number) as
-          | {
-              summary: string
-              notes: string
-              changed: string
-              error: string | null
-              model: string
-              hunks: string | null
-            }
-          | undefined)
-      : undefined
-
+      .get(id) as DetailRow | undefined
+    if (!row) return c.html('<p class="sub">This update is no longer pending.</p>', 404)
     return c.html(
-      DiffView({
-        result,
-        links: row ? refLinks(parseImageRef(row.image), row.to_tag, row.source_url) : undefined,
-        prNumber: pr?.number ?? null,
-        prUrl: pr ? `https://github.com/${env.githubRepo}/pull/${pr.number}` : null,
-        prScope: pr?.scope ?? null,
-        proposal: proposal
-          ? {
-              summary: proposal.summary,
-              notes: JSON.parse(proposal.notes) as string[],
-              changed: JSON.parse(proposal.changed ?? '[]') as string[],
-              error: proposal.error,
-              model: proposal.model,
-              hunks: JSON.parse(proposal.hunks ?? '[]') as DiffHunk[],
-            }
-          : undefined,
-        canPropose: !!pr && pr.scope === 'tag-only',
-      }) as string,
+      DetailPanel({ row, repo: env.githubRepo, diff: diffFragment(id) }) as string,
     )
   })
 
@@ -509,6 +481,73 @@ function swSource(): string {
     }
   }
   return swCache
+}
+
+/**
+ * The diff fragment, built once and shared by /updates/:id/diff and the drawer.
+ *
+ * Two endpoints rendering the same panel is exactly how the two drift, and this one
+ * carries the proposal block and the reference links -- the parts a reviewer reads.
+ */
+function diffFragment(id: number): string {
+
+        const result = buildUpdateDiff(id)
+    const db = getDb()
+    const pr = db
+      .prepare(
+        `SELECT p.number, p.scope FROM prs p JOIN pr_updates pu ON pu.pr_id = p.id
+         WHERE pu.update_id = ? AND p.state = 'open'`,
+      )
+      .get(id) as { number: number; scope: string } | undefined
+
+    // Links point at the TARGET tag: this panel is where the merge decision happens.
+    const row = db
+      .prepare(
+        `SELECT u.image, u.to_tag, r.source_url FROM updates u
+         JOIN images i ON i.stack = u.stack AND i.service = u.service
+         LEFT JOIN resolutions r ON r.registry = i.registry AND r.repository = i.repository
+         WHERE u.id = ?`,
+      )
+      .get(id) as { image: string; to_tag: string; source_url: string | null } | undefined
+
+    const proposal = pr
+      ? (db
+          .prepare(
+            `SELECT summary, notes, changed, error, model, hunks FROM proposals
+             WHERE pr_id = (SELECT id FROM prs WHERE number = ?) ORDER BY id DESC LIMIT 1`,
+          )
+          .get(pr.number) as
+          | {
+              summary: string
+              notes: string
+              changed: string
+              error: string | null
+              model: string
+              hunks: string | null
+            }
+          | undefined)
+      : undefined
+
+    return (
+      DiffView({
+        result,
+        links: row ? refLinks(parseImageRef(row.image), row.to_tag, row.source_url) : undefined,
+        prNumber: pr?.number ?? null,
+        prUrl: pr ? `https://github.com/${env.githubRepo}/pull/${pr.number}` : null,
+        prScope: pr?.scope ?? null,
+        proposal: proposal
+          ? {
+              summary: proposal.summary,
+              notes: JSON.parse(proposal.notes) as string[],
+              changed: JSON.parse(proposal.changed ?? '[]') as string[],
+              error: proposal.error,
+              model: proposal.model,
+              hunks: JSON.parse(proposal.hunks ?? '[]') as DiffHunk[],
+            }
+          : undefined,
+        canPropose: !!pr && pr.scope === 'tag-only',
+      }) as string
+  )
 }
 
 function statuses(): Map<string, StatusRow> {

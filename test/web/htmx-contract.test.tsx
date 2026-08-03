@@ -19,12 +19,43 @@ function insideRow(html: string, index: number): boolean {
   return before.lastIndexOf('<tr') > before.lastIndexOf('</tr>')
 }
 
-test('contract 1: diff panels are native <details>, which is what fires the toggle event', () => {
-  // `from:closest details` listens for the DOM `toggle` event. Only <details> emits it,
-  // so a Bootstrap/Tabler collapse here loads no diff and reports no error.
-  assert.match(R.pending!, /<details[^>]*class="diffbox"/)
-  assert.match(R.pending!, /hx-trigger="toggle once from:closest details"/)
-  assert.match(R.pending!, /<summary/)
+/*
+ * Contract 1 used to require a native <details> for the inline diff expander, because
+ * `from:closest details` listens for the DOM `toggle` event that only <details> emits.
+ * The expander is gone -- detail moved into a drawer, which is where a panel that rich
+ * belongs -- so that contract is replaced by the three below rather than deleted.
+ */
+
+test('contract 1a: a row opens the drawer, and loads it', () => {
+  assert.match(R.pending!, /hx-get="\/updates\/\d+\/detail"/)
+  assert.match(R.pending!, /hx-target="#detail-body"/)
+  assert.match(R.pending!, /data-bs-target="#detail"/)
+})
+
+test('contract 1b: clicking a button or link inside a row does not also open the drawer', () => {
+  // Without the event filter, Dismiss both dismisses the row and opens a panel about
+  // the row it just dismissed.
+  assert.match(R['pending-held']!, /hx-trigger="click\[!event\.target\.closest\(&#39;button,a&#39;\)\]"/)
+})
+
+test('contract 1c: the drawer lives outside the region the poll replaces', () => {
+  // #pending is swapped wholesale every 10s while a scan runs. A drawer rendered inside
+  // it would be torn out of the DOM mid-read, with the backdrop left behind.
+  const page = R.dashboard!
+  const drawer = page.indexOf('id="detail"')
+  const openPending = page.indexOf('id="pending"')
+  assert.ok(drawer > -1, 'no detail drawer on the dashboard')
+  // The drawer is rendered after #pending's closing markup, at page level.
+  assert.ok(drawer > openPending, 'drawer must not precede the poll region')
+  assert.doesNotMatch(R.pending!, /id="detail"/, 'the fragment must not carry the drawer')
+  assert.doesNotMatch(R.pending!, /id="detail-body"/)
+})
+
+test('contract 1d: the poll carries the open tab, so it does not snap back mid-read', () => {
+  assert.match(R.dashboard!, /hx-include="#worklist-state"/)
+  assert.match(R.pending!, /id="worklist-state"/)
+  assert.match(R.pending!, /name="bucket"/)
+  assert.match(R.pending!, /name="prscope"/)
 })
 
 test('contract 2: every "closest tr" trigger is inside the row it replaces', () => {
@@ -34,7 +65,8 @@ test('contract 2: every "closest tr" trigger is inside the row it replaces', () 
     }
   }
   // ...and the two known sites still exist, so this test cannot pass by them vanishing.
-  assert.match(R.pending!, /hx-target="closest tr"/)
+  // On the dashboard only the buckets with a row action (held, rolling) carry one.
+  assert.match(R['pending-held']!, /hx-target="closest tr"/)
   assert.match(R['images-table']!, /hx-target="closest tr"/)
 })
 

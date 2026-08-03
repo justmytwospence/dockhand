@@ -79,8 +79,11 @@ export const Layout: FC<
     actions?: unknown
     /** Suppress the page header entirely (the About page is its own document). */
     bare?: boolean
+    /** This page is a workspace: its content fills the region and scrolls internally,
+     *  rather than flowing past the bottom of it. */
+    fill?: boolean
   }>
-> = ({ title, path, missing, subtitle, actions, bare, children }) => (
+> = ({ title, path, missing, subtitle, actions, bare, fill, children }) => (
   <html lang="en" data-bs-theme="light">
     <head>
       <meta charset="utf-8" />
@@ -132,7 +135,7 @@ export const Layout: FC<
               </div>
             </div>
           )}
-          <div class="page-body">
+          <div class={`page-body${fill ? ' fill' : ''}`}>
             <div class="container-xl">
               {missing && missing.length > 0 && <Setup missing={missing} />}
               {children}

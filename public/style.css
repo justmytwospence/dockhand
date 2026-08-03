@@ -1317,3 +1317,147 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   --tblr-popover-max-width: 22rem;
   font-size: 0.85rem;
 }
+
+/* ------------------------------------------------------------------ worklist */
+
+/* Toolbar and tabs on one line, attached to the table they act on rather than
+   floating above it as a separate section. */
+.worklist-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 0;
+}
+
+.worklist-bar .nav-tabs {
+  border-bottom: 0;
+  margin-bottom: -1px;
+}
+
+.worklist-bar .badge {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* The whole row opens the drawer, so it has to look like it does. */
+.worklist-row {
+  cursor: pointer;
+}
+
+.worklist-row:hover {
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.worklist-row:hover .row-chevron {
+  color: var(--tblr-primary);
+}
+
+.row-chevron svg {
+  width: 1rem;
+  height: 1rem;
+  vertical-align: -0.2em;
+}
+
+/* Rows are one line each: a worklist you scan, not paragraphs you read. */
+.worklist td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* A KPI you can act on. */
+.kpi {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.12s ease;
+}
+
+.kpi:hover {
+  border-color: var(--tblr-primary);
+  color: inherit;
+}
+
+/* ------------------------------------------------------------------ feed */
+
+/* The activity rail. A list, not a table -- three columns of metadata is the wrong
+   shape for something you glance at. */
+.feed {
+  overflow-y: auto;
+  padding-block: 0.5rem;
+}
+
+.feed-item {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.feed-item + .feed-item {
+  border-top: 1px solid var(--tblr-border-color);
+}
+
+.feed-item .kdot {
+  margin-top: 0.4rem;
+  flex: none;
+}
+
+.feed-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ drawer */
+
+/* Wide enough for a diff. Tabler's default offcanvas is a navigation drawer; this one
+   carries the densest content in the app. */
+.offcanvas-detail {
+  --tblr-offcanvas-width: min(46rem, 100vw);
+}
+
+.offcanvas-detail .offcanvas-body {
+  padding-top: 0;
+}
+
+.detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--tblr-bg-surface);
+  padding: 0.75rem 0 0.85rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.detail-service {
+  font-size: 1rem;
+}
+
+.detail-versions {
+  font-size: 0.92rem;
+  margin-top: 0.15rem;
+}
+
+.detail-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+/* Two panes that share the region's height. */
+@media (min-width: 992px) {
+  .workspace-row {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+/* Below xl the feed sits under the worklist, so neither should be height-capped. */
+@media (max-width: 1199.98px) {
+  .card-fill {
+    min-height: 22rem;
+  }
+}
