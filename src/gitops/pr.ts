@@ -93,15 +93,20 @@ export async function runPrPass(): Promise<PrRunResult> {
     const openNow = countOpenPrs()
     const room = Math.max(0, policy.prs.max_open - openNow)
     if (room === 0) {
-      logEvent({
-        level: 'info',
-        kind: 'pr',
-        message: `holding ${groups.length} update(s): ${openNow} pull requests already open`,
-        detail: `raise prs.max_open to open more at once`,
-      })
+      // Once per change of fact, not once per poll. The PR loop runs every 60s while
+      // anything is open, and this branch is the steady state of a full queue -- logging
+      // it unconditionally wrote 2,237 identical rows in two days and buried every event
+      // that mattered underneath them. The scan path has always had this discipline
+      // ("events fire on the first observation of a fact"); this is the same rule.
+      noteOnce(
+        `queue-full:${groups.length}:${openNow}`,
+        `holding ${groups.length} update(s): ${openNow} pull requests already open`,
+        'raise prs.max_open to open more at once',
+      )
       out.skipped = groups.length
       return out
     }
+    clearNote('queue-full')
 
     await ensureLabels()
     const repoDir = await ensureWorkRepo()
@@ -167,6 +172,26 @@ function eligibleGroups(policy: Policy): UpdateGroup[] {
   const services = scanRepo(env.repoDir, policy.exclude_stacks)
   const { sourceRepoFor, groupLabelFor } = makeLookups(services)
   return groupUpdates(candidates, sourceRepoFor, groupLabelFor)
+}
+
+/**
+ * Log a standing condition once, and again only when it changes.
+ *
+ * In-memory rather than in the database on purpose: the point is to keep a *repeating*
+ * observation out of the log, and a restart is a good moment to restate one. Keyed by
+ * a prefix so the condition can be cleared when it stops being true.
+ */
+const noted = new Map<string, string>()
+
+function noteOnce(key: string, message: string, detail?: string): void {
+  const prefix = key.split(':')[0]!
+  if (noted.get(prefix) === key) return
+  noted.set(prefix, key)
+  logEvent({ level: 'info', kind: 'pr', message, detail })
+}
+
+function clearNote(prefix: string): void {
+  noted.delete(prefix)
 }
 
 function countOpenPrs(): number {
