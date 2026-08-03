@@ -325,8 +325,8 @@ td.num {
 
 /* ------------------------------------------------------------------ tables */
 
-/* The scroll container is a wrapper, not the table itself: making <table> a block
-   breaks its own column sizing, so the table stays display:table inside it. */
+/* Tabler's .card supplies the frame and .table-responsive the scrolling, so this is
+   now only the container for the raw-file viewer, which is not a table at all. */
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -336,21 +336,21 @@ td.num {
   -webkit-overflow-scrolling: touch;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+/* Scoped to .table rather than bare `table`, so the Setup banner's own little table
+   and anything Tabler renders internally are left alone. The density and the uppercase
+   header are deliberate and predate Tabler; they are kept. */
+.table {
   font-size: 0.9rem;
 }
 
-th,
-td {
+.table th,
+.table td {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
 
-thead th {
+.table thead th {
   font-weight: 550;
   font-size: 0.82rem;
   color: var(--muted);
@@ -359,11 +359,7 @@ thead th {
   white-space: nowrap;
 }
 
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
-table.kv th {
+.table.kv th {
   width: 200px;
   font-weight: 500;
   color: var(--muted);
@@ -415,27 +411,6 @@ code {
 
 .warn-text {
   color: var(--warn);
-}
-
-.banner {
-  border: 1px solid;
-  border-radius: var(--radius);
-  padding: 0.65rem 0.9rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
-.banner.info {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.banner.warn {
-  color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
-}
-.banner.error {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .row-warn td {

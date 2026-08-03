@@ -94,15 +94,42 @@ export const Layout: FC<
   </html>
 )
 
+/** `kind` is kept as-is so all six call sites are untouched; only the mapping is new. */
+const ALERT = { info: 'alert-info', warn: 'alert-warning', error: 'alert-danger' } as const
+
 export const Banner: FC<{ kind: 'warn' | 'error' | 'info'; children?: unknown }> = ({
   kind,
   children,
-}) => <div class={`banner ${kind}`}>{children}</div>
+}) => <div class={`alert ${ALERT[kind]}`}>{children}</div>
 
-/** Tables scroll horizontally inside their own box so the page body never does. */
+/**
+ * A table in a card.
+ *
+ * Every table in the app goes through here, so this one component is what turns seven
+ * stacked headings-and-tables into seven panels. `card-table` makes the table flush with
+ * the card edge; `table-responsive` keeps wide content scrolling inside its own box
+ * rather than the page.
+ */
 export const Table: FC<PropsWithChildren<{ kv?: boolean }>> = ({ kv, children }) => (
-  <div class="table-wrap">
-    <table class={kv ? 'kv' : ''}>{children}</table>
+  <div class="card">
+    <div class="table-responsive">
+      <table class={`table card-table table-vcenter${kv ? ' kv' : ''}`}>{children}</table>
+    </div>
+  </div>
+)
+
+/** A titled panel. The heading moves inside the card rather than floating above it. */
+export const Panel: FC<PropsWithChildren<{ title: string; sub?: unknown }>> = ({
+  title,
+  sub,
+  children,
+}) => (
+  <div class="card">
+    <div class="card-header d-block">
+      <h3 class="card-title mb-0">{title}</h3>
+      {sub ? <p class="sub mb-0 mt-1">{sub}</p> : null}
+    </div>
+    {children}
   </div>
 )
 
@@ -136,7 +163,7 @@ export const RowNote: FC<{ cols: number; cls?: string; children?: unknown }> = (
 
 /** Shown until dockhand knows which repository to watch. */
 const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
-  <div class="banner warn">
+  <div class="alert alert-warning">
     <strong>dockhand is not configured yet.</strong>
     <p>Set the following, then restart the container:</p>
     <table class="kv">

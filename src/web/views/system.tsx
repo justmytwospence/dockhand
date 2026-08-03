@@ -290,6 +290,15 @@ export const SystemPage: FC<{
       </>
     )}
 
+    <h2>Auto-merge preview</h2>
+    <p class="sub">
+      What the merge engine would decide about every open pull request, right now,
+      evaluated by the code that does the merging rather than a description of it.
+    </p>
+    <div id="merge-preview" hx-get="/merge/preview" hx-trigger="load" hx-swap="innerHTML">
+      <p class="sub">loading&hellip;</p>
+    </div>
+
     <h2>Budgets</h2>
     {budgets.length === 0 ? (
       <Empty>
@@ -340,4 +349,50 @@ const Cred: FC<{ name: string; set: boolean; optional?: boolean }> = ({
       )}
     </td>
   </tr>
+)
+
+/**
+ * A dry run of the merge engine, rendered by the same decision code that merges.
+ *
+ * Worth surfacing precisely because `merge.auto` ships off: this is the only way to see
+ * what enabling it would actually do, before enabling it.
+ */
+export const MergePreview: FC<{
+  decisions: { number: number; merge: boolean; reason: string }[]
+  auto: boolean
+}> = ({ decisions, auto }) => (
+  <>
+    <p class="sub">
+      {auto ? (
+        <>
+          Auto-merge is <strong>on</strong>.
+        </>
+      ) : (
+        <>
+          Auto-merge is <strong>off</strong> &mdash; this is what it would do if enabled.
+        </>
+      )}
+    </p>
+    {decisions.length === 0 ? (
+      <Empty>No open pull requests.</Empty>
+    ) : (
+      <Table>
+        <tbody>
+          {decisions.map((d) => (
+            <tr>
+              <td class="mono nowrap">#{d.number}</td>
+              <td class="nowrap">
+                {d.merge ? (
+                  <span class="pill ok">would merge</span>
+                ) : (
+                  <span class="pill muted">held</span>
+                )}
+              </td>
+              <td class="sub">{d.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    )}
+  </>
 )

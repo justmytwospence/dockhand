@@ -34,7 +34,7 @@ import { configured as emailConfigured, send as sendEmail, escapeHtml as escapeT
 import { rescheduleScan, rescheduleDigest } from '../scheduler.ts'
 import { readFileSync as readFile } from 'node:fs'
 import { paths } from '../config.ts'
-import { SystemPage, type SpendRow, type DeployRow, type ModelTierRow } from './views/system.tsx'
+import { SystemPage, MergePreview, type SpendRow, type DeployRow, type ModelTierRow } from './views/system.tsx'
 
 const PENDING_SQL = `
   SELECT u.id, u.stack, u.service, u.image, u.from_tag, u.to_tag, u.magnitude,
@@ -232,21 +232,16 @@ export function createApp(): Hono {
   })
 
   /** What auto-merge would do right now, decided by the code that does it. */
+  /**
+   * What auto-merge would do right now, decided by the code that actually does it.
+   *
+   * Reachable from the System page. It was an orphan endpoint for a while -- no view
+   * linked to it -- which is how its markup drifted out of step with everything else.
+   */
   app.get('/merge/preview', async (c) => {
     const r = await runAutoMerge(true)
     const { policy } = loadPolicy()
-    const rows = r.decisions
-      .map(
-        (d) =>
-          `<tr><td class="mono">#${d.number}</td><td>${
-            d.merge ? '<span class="pill ok">would merge</span>' : '<span class="pill muted">held</span>'
-          }</td><td class="sub">${d.reason}</td></tr>`,
-      )
-      .join('')
-    return c.html(
-      `<p class="sub">${policy.merge.auto ? 'Auto-merge is <strong>on</strong>.' : 'Auto-merge is <strong>off</strong> — this is what it would do if enabled.'}</p>` +
-        `<table><tbody>${rows || '<tr><td class="sub">No open pull requests.</td></tr>'}</tbody></table>`,
-    )
+    return c.html(MergePreview({ decisions: r.decisions, auto: policy.merge.auto }) as string)
   })
 
   app.get('/images', (c) => {
