@@ -155,7 +155,7 @@ export const SettingsPage: FC<{
 )
 
 export const PromptEditorFragment: FC<{ state: PromptState }> = ({ state }) => (
-  <div class="prompt-editor" id={`prompt-${state.name}`}>
+  <div class="prompt-editor card" id={`prompt-${state.name}`}>
     <form hx-post={`/settings/prompt/${state.name}`} hx-target={`#prompt-${state.name}`} hx-swap="outerHTML">
       <div class="prompt-head">
         <strong>{PROMPTS[state.name].title}</strong>
@@ -242,7 +242,6 @@ export const SettingsForm: FC<{
               />
             )}
           </div>
-          <div>
           {primary.length > 0 && (
             <div class="settings">
               {primary.map((def) => (
@@ -284,7 +283,6 @@ export const SettingsForm: FC<{
               </div>
             </details>
           )}
-          </div>
         </section>
       )
     })}
@@ -478,7 +476,7 @@ export const DigestPreview: FC<{
     )}
     {message ? (
       <>
-        <div class="table-wrap">
+        <div class="card">
           <pre class="rawfile">
             {message.title}
             {'\n\n'}
@@ -511,13 +509,19 @@ export const DigestPreview: FC<{
 )
 
 export const RawPolicy: FC<{ text: string; error?: string; missing?: MissingSetting[] }> = ({ text, error, missing }) => (
-  <Layout title="policy.yaml" path="/settings" missing={missing}>
-    <h2>policy.yaml</h2>
-    <p class="sub">
-      The file as it exists on disk, comments and all. <a href="/settings">&larr; Back to settings</a>
-    </p>
+  <Layout
+    title="policy.yaml"
+    path="/settings"
+    missing={missing}
+    subtitle="The file as it exists on disk, comments and all."
+    actions={
+      <a class="btn" href="/settings">
+        &larr; Back to settings
+      </a>
+    }
+  >
     {error && <Banner kind="error">{error}</Banner>}
-    <div class="table-wrap">
+    <div class="card">
       <pre class="rawfile">{text}</pre>
     </div>
   </Layout>

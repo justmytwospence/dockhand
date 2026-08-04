@@ -267,8 +267,8 @@ p.nothing {
   margin: 0.25rem 0 0.9rem;
 }
 
-/* Numeric table cells. `.tile .num` existed; this did not, so the spend table's
-   figures were left-aligned and not tabular. */
+/* Numeric table cells. This did not exist, so the spend table's figures were
+   left-aligned and not tabular. */
 th.num,
 td.num {
   text-align: right;
@@ -292,49 +292,7 @@ td.num {
   display: none;
 }
 
-/* ------------------------------------------------------------------ tiles */
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.tile {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.9rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.tile .num {
-  font-size: 1.6rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.tile .lbl {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
 /* ------------------------------------------------------------------ tables */
-
-/* Tabler's .card supplies the frame and .table-responsive the scrolling, so this is
-   now only the container for the raw-file viewer, which is not a table at all. */
-.table-wrap {
-  width: 100%;
-  overflow-x: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  -webkit-overflow-scrolling: touch;
-}
 
 /* Scoped to .table rather than bare `table`, so the Setup banner's own little table
    and anything Tabler renders internally are left alone. The density and the uppercase
@@ -441,19 +399,6 @@ code {
     padding-block: 1.25rem 3rem;
   }
 
-  .tiles {
-    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-    gap: 0.5rem;
-  }
-
-  .tile {
-    padding: 0.7rem 0.75rem;
-  }
-
-  .tile .num {
-    font-size: 1.35rem;
-  }
-
   th,
   td {
     padding: 0.45rem 0.6rem;
@@ -520,42 +465,7 @@ tr.dismissed td {
 
 /* ------------------------------------------------------------------ diffs */
 
-.diffbox summary {
-  cursor: pointer;
-  list-style: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.diffbox summary::-webkit-details-marker {
-  display: none;
-}
-
 /* A disclosure caret drawn in CSS, so the row stays compact when collapsed. */
-.diffbox summary::before {
-  content: "";
-  width: 0;
-  height: 0;
-  border-left: 4px solid var(--muted);
-  border-top: 3.5px solid transparent;
-  border-bottom: 3.5px solid transparent;
-  transition: transform 0.12s ease;
-  flex: none;
-}
-
-.diffbox[open] summary::before {
-  transform: rotate(90deg);
-}
-
-.diffbox summary:hover::before {
-  border-left-color: var(--accent);
-}
-
-.diff-body {
-  margin-top: 0.5rem;
-}
-
 .diff {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -727,16 +637,6 @@ button[disabled] {
   font-size: 0.72rem;
 }
 
-.scopefilters {
-  align-items: baseline;
-  margin-bottom: 0.4rem;
-}
-
-.filters-note {
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-
 .diff-links {
   display: flex;
   flex-wrap: wrap;
@@ -750,10 +650,7 @@ button[disabled] {
 }
 
 @media (max-width: 640px) {
-  .filters-note {
-    display: none;
   }
-}
 
 /* ------------------------------------------------------------------ settings */
 
@@ -824,6 +721,7 @@ button[disabled] {
   padding-left: 1.1rem;
 }
 
+/* Sits directly inside a .card now -- the card is the frame, this is the content. */
 .rawfile {
   margin: 0;
   padding: 0.9rem 1.1rem;
@@ -860,6 +758,14 @@ button[disabled] {
   color: var(--accent);
 }
 
+/* Diffs nested inside a proposal do not need their own frame: the proposal is already
+   a bordered block, and two boxes around one hunk is one box too many. */
+.proposal .diff {
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+}
+
 .proposal {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
@@ -883,12 +789,10 @@ button[disabled] {
   color: var(--warn);
 }
 
+/* .card supplies the frame; this only adds the padding a card-body would. */
 .prompt-editor {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
   padding: 0.9rem 1rem;
   margin-bottom: 1rem;
-  background: var(--panel);
 }
 
 .prompt-head {
@@ -924,12 +828,6 @@ button[disabled] {
   margin: 1rem 0 0.5rem;
   font-size: 0.9rem;
   line-height: 1.5;
-}
-
-.rule.compact {
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 0.5rem 0.8rem;
 }
 
 .rule strong {

@@ -113,10 +113,12 @@ test('contract 4b: the scan-status poll replaces itself, so it stops when the sc
 test('contract 5: the prompt editor is its own outerHTML swap target', () => {
   // hx-swap="outerHTML" onto #prompt-<name>: the fragment must re-emit that wrapper or
   // the element disappears and the next save has nowhere to go.
-  assert.ok(
-    R['prompt-fragment']!.startsWith('<div class="prompt-editor" id="prompt-verdict"'),
-    R['prompt-fragment']!.slice(0, 80),
-  )
+  // Asserted on the two things the swap needs -- the class and the id, on the outermost
+  // element -- rather than an exact class string, which is presentation.
+  const open = /^<div class="([^"]*)" id="(prompt-[^"]+)"/.exec(R['prompt-fragment']!)
+  assert.ok(open, R['prompt-fragment']!.slice(0, 80))
+  assert.ok(open![1]!.split(/\s+/).includes('prompt-editor'))
+  assert.equal(open![2], 'prompt-verdict')
 })
 
 test('contract 5b: #settings-form is declared by the page, not by the form it wraps', () => {

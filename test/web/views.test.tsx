@@ -202,3 +202,53 @@ test('the save bar is inside the form and knows which panes it applies to', () =
   assert.match(R.settings!, /data-form="1"/)
   assert.match(R.settings!, /data-form="0"/)
 })
+
+/**
+ * Classes that only appear on a branch the fixtures do not exercise -- an error state,
+ * a server-rendered row note, a conditional badge. Verified by grep against src/, not
+ * assumed: each is named in the markup somewhere, just not in a rendered fixture.
+ */
+const CONDITIONAL = new Set([
+  'detail', 'dismissed', 'errlist', 'failed', 'notes', 'oplist',
+  'proposal', 'row-error', 'row-warn', 'popover',
+])
+
+test('no CSS is left behind for a feature that no longer exists', () => {
+  // The other direction from the coverage test above. Removing an expander or a filter
+  // strip leaves its rules behind, and dead frames are exactly how box-in-box nesting
+  // accumulates -- a rule with no markup still draws nothing, but the next person to
+  // read the stylesheet cannot tell which frames are real.
+  const rendered = new Set<string>()
+  for (const html of [...Object.values(R), ...Object.values(renderAll({ running: true }))]) {
+    for (const attr of classesOf(html)) {
+      for (const c of attr.split(/\s+/).filter(Boolean)) rendered.add(c)
+    }
+  }
+  const styled = new Set(
+    [...APP_CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]!),
+  )
+  const orphans = [...styled].filter((c) => !rendered.has(c) && !CONDITIONAL.has(c)).sort()
+  assert.deepEqual(orphans, [], `CSS with no markup: ${orphans.join(', ')}`)
+})
+
+test('nothing draws a frame inside another frame', () => {
+  // One box per thing. A card in a card, or a bordered block inside a bordered block,
+  // is the visual tell that a refactor left a wrapper behind.
+  const FRAMED = /\b(card|alert|prompt-editor)\b/
+  for (const [name, html] of Object.entries(R)) {
+    const stack: boolean[] = []
+    for (const m of html.matchAll(/<(\/?)(?:div|section|form|aside|nav)\b([^>]*)>/g)) {
+      if (m[1]) {
+        stack.pop()
+        continue
+      }
+      const cls = /class="([^"]*)"/.exec(m[2]!)?.[1] ?? ''
+      // card-table/card-body/card-header/card-sm/card-fill are parts of a card, not new ones.
+      const isFrame = FRAMED.test(cls.replace(/card-[\w-]+/g, ''))
+      if (isFrame && stack.some(Boolean)) {
+        assert.fail(`${name}: a framed element nested inside another (class="${cls}")`)
+      }
+      stack.push(isFrame)
+    }
+  }
+})
