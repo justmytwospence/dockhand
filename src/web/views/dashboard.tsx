@@ -347,7 +347,9 @@ const Row: FC<{ row: PendingRow; repo: string; action?: 'open-pr' | 'dismiss' }>
       <span class="svc-stack">{r.stack}</span>
       <span class="svc-name">{r.service}</span>
     </td>
-    <td class="mono nowrap">
+    {/* Digest refs run to 20+ characters either side; in an 8-column pane that alone
+        pushes the table wider than its card and clips the PR column off the end. */}
+    <td class="mono nowrap change">
       {shorten(r.from_tag)} <span class="sub">&rarr;</span> {shorten(r.to_tag)}
     </td>
     <td>

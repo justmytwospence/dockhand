@@ -1082,8 +1082,8 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
     height: 100%;
   }
 
-  /* dvh, not vh: vh is the *largest* viewport on mobile browsers and overshoots. The
-     sidebar is already position:fixed, so only this column needs sizing. */
+  /* dvh, not vh: vh is the *largest* viewport on mobile browsers and overshoots.
+     The sidebar is position:fixed already, so only this column needs sizing. */
   .page-wrapper {
     height: 100dvh;
     display: flex;
@@ -1103,51 +1103,118 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
     margin: 0;
   }
 
-  /* The one thing that scrolls. min-height:0 is required -- without it a flex child
-     refuses to shrink below its content and the region never scrolls at all. */
+  /* Document-shaped pages (settings, system, about): this is the scroll container. */
   .page-body {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    margin-top: 0;
-    margin-bottom: 0;
+    margin-block: 0;
     padding-block: 1.25rem;
   }
 
-  /* Opt in per page: fill the region exactly rather than flowing past it, so the card
-     inside owns the scrolling. Used by the worklist and the data grids. */
-  .page-body.fill,
-  .page-body.fill > .container-xl {
-    height: 100%;
+  /*
+   * Workspace pages. The rule is: exactly ONE scroll container per screen, and it is
+   * the region that holds the data -- not the page.
+   *
+   * So .fill turns off this element's own scrolling and makes it a flex column, and
+   * every level between here and the scroller repeats `flex: 1 1 auto; min-height: 0`.
+   * No percentage heights anywhere: `height: 100%` on a flex item resolves against the
+   * parent's height *before* flexing, which is how the previous version ended up
+   * overflowing its own wrapper by the height of the header.
+   *
+   * min-height:0 at every level is the non-obvious half -- a flex item's default
+   * min-height is auto, which refuses to shrink below its content, so without it the
+   * region grows to fit 200 rows and nothing scrolls at all.
+   */
+  .page-body.fill {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  /*
+   * flex-basis 0, not auto. This is the whole trick, and it is the one that is easy to
+   * get wrong: with `auto` a flex item's hypothetical size is its CONTENT height, so a
+   * card holding 20 rows asks for 907px, the flex line grows to fit it, and the region
+   * overflows no matter how many min-height:0 you sprinkle around. With basis 0 the
+   * item asks for nothing and grows into whatever the region actually has.
+   */
+  .page-body.fill > * {
+    flex: 1 1 0;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /*
+   * Every flex level between the region and the scroller must be allowed to shrink.
+   * Bootstrap's .row/.col and .flex-fill leave min-height at `auto`, which means "never
+   * smaller than my content" -- so one un-annotated level anywhere in the chain and the
+   * card grows to fit all 45 rows, overflows the region, and (because .fill clips) the
+   * bottom of the page becomes unreachable. Which is exactly what happened here.
+   */
+  .page-body.fill .row,
+  .page-body.fill [class*='col-'],
+  .page-body.fill .flex-fill,
+  .card-fill,
+  .grid-scroll {
+    min-height: 0;
+  }
+
+  .workspace-row,
+  .page-body.fill .flex-fill,
+  .card-fill,
+  .grid-scroll {
+    flex: 1 1 0;
+  }
+
+  .grid-scroll {
+    overflow: auto;
   }
 }
 
-/* A table whose header stays put while its body scrolls. Tabler ships no equivalent.
-   Works against whichever ancestor scrolls -- .table-responsive here -- so it is
-   correct on mobile page-scroll too. */
-.table-sticky thead th {
+/*
+ * A table header that stays put while its body scrolls.
+ *
+ * Stuck on <thead>, NOT on <th>. Both compute to position:sticky, but only the thead
+ * actually sticks in a scroll container -- verified in the browser: with the rule on
+ * th the header scrolls away with the rows and nothing reports an error. It is not
+ * border-collapse and not a transformed ancestor; th simply does not stick here.
+ *
+ * The background has to go on the cells rather than the thead: with border-collapse a
+ * background on the row group paints beneath the cells, and rows would show through.
+ * Shadow rather than border for the same reason -- a collapsed border on a sticky cell
+ * is not painted once it detaches.
+ */
+.table-sticky thead {
   position: sticky;
   top: 0;
   z-index: 2;
-  /* Opaque, and shadowed rather than bordered: a sticky border collapses away when the
-     table scrolls, and a row sliding under a transparent header shows through it. */
+}
+
+.table-sticky thead th {
   background: var(--tblr-body-bg);
   box-shadow: inset 0 -1px 0 var(--tblr-border-color);
 }
 
-/* A card that fills its parent and scrolls internally instead of growing the page. */
+/* Inside a card the backdrop is the card's surface, not the page's. They differ in
+   both themes, and a header the wrong colour reads as a rendering glitch. */
+.card .table-sticky thead th {
+  background: var(--tblr-bg-surface);
+}
+
+/* A card that fills its parent and scrolls internally instead of growing the page.
+   basis 0 for the reason spelled out on .page-body.fill > * : with `auto` this card
+   would demand its content height and push the flex line past the region. */
 .card-fill {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .card-fill > .table-responsive {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
 }
@@ -1231,6 +1298,18 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   white-space: nowrap;
 }
 
+/* The two text columns are the unbounded ones -- a digest pair is 40 characters, and
+   stack/service pairs run long -- so they truncate rather than widening the table past
+   its pane. Everything to their right (verdict, PR, the action) is what you came to
+   read; losing those to a horizontal scrollbar to show a full sha is the wrong trade,
+   and the drawer shows both in full anyway. */
+.worklist td:first-child,
+.worklist td.change {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* A KPI you can act on. */
 .kpi {
   text-decoration: none;
@@ -1311,14 +1390,6 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   gap: 0.4rem;
   flex-wrap: wrap;
   margin-top: 0.5rem;
-}
-
-/* Two panes that share the region's height. */
-@media (min-width: 992px) {
-  .workspace-row {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
 }
 
 /* Below xl the feed sits under the worklist, so neither should be height-capped. */
@@ -1457,7 +1528,7 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
 /* A fragment swapped straight into a scroll container: it brings the table, the
    container brings the scrolling. */
 .card-fill > .table-responsive.flex-fill {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
 }
@@ -1507,11 +1578,7 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   flex: 1 1 20rem;
 }
 
-/* No gutters: the table starts where the page does. */
-.page-body.bleed > .container-fluid {
-  padding-inline: 0;
-}
-
+/* The table starts where the page does. */
 .grid-scroll {
   width: 100%;
 }
@@ -1519,20 +1586,6 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
 @media (min-width: 992px) {
   .page-body.bleed {
     padding-block: 0;
-  }
-
-  .page-body.fill.bleed > .container-fluid {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  /* The table owns the scrolling; the page around it does not move at all. */
-  .grid-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
   }
 }
 

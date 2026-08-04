@@ -153,10 +153,20 @@ export const Layout: FC<
             </div>
           )}
           <div class={`page-body${fill ? ' fill' : ''}${bleed ? ' bleed' : ''}`}>
-            <div class={bleed ? 'container-fluid' : 'container-xl'}>
-              {missing && missing.length > 0 && <Setup missing={missing} />}
-              {children}
-            </div>
+            {/* A bleed page has no container: its content already runs edge to edge,
+                so a wrapper whose only job is to zero out its own padding is a level
+                of nesting that exists to undo itself. */}
+            {bleed ? (
+              <>
+                {missing && missing.length > 0 && <Setup missing={missing} />}
+                {children}
+              </>
+            ) : (
+              <div class="container-xl">
+                {missing && missing.length > 0 && <Setup missing={missing} />}
+                {children}
+              </div>
+            )}
           </div>
         </div>
         <BottomNav path={path} />

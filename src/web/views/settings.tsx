@@ -98,7 +98,6 @@ export const SettingsPage: FC<{
     title="Settings"
     path="/settings"
     missing={missing}
-    fill
     actions={
       <a class="btn" href="/settings/raw">
         View policy.yaml
