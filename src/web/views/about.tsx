@@ -52,7 +52,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         <b>Found.</b> A nightly scan compares every watched image against its registry.
         <span class="knob">
           <code>dockhand.watch</code>, <code>dockhand.pattern</code>,{' '}
-          <a href="/settings#finding-updates">Finding updates</a>
+          <a href="/settings#scanning">Scanning</a>
         </span>
       </li>
       <li>
@@ -60,7 +60,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         decides how much may happen without you.
         <span class="knob">
           <code>dockhand.policy</code>,{' '}
-          <a href="/settings#what-may-happen-without-you">What may happen without you</a>
+          <a href="/settings#update-policy">Update policy</a>
         </span>
       </li>
       <li>
@@ -77,7 +77,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         writes a verdict into the pull request body: approve, caution, or block.
         <span class="knob">
           <code>dockhand.source</code>,{' '}
-          <a href="/settings#reading-the-changelog">Reading the changelog</a>
+          <a href="/settings#changelog-review">Changelog review</a>
         </span>
       </li>
       <li>
@@ -86,7 +86,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         waits for a person.
         <span class="knob">
           <code>dockhand.propose</code>,{' '}
-          <a href="/settings#drafting-config-changes">Drafting config changes</a>
+          <a href="/settings#config-proposals">Config proposals</a>
         </span>
       </li>
       <li>
@@ -100,14 +100,14 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         <b>Deployed.</b> The checkout fast-forwards and the stack comes up, then is
         watched until it is healthy.
         <span class="knob">
-          <code>dockhand.deploy</code>, <a href="/settings#deploying">Deploying</a>
+          <code>dockhand.deploy</code>, <a href="/settings#deploys">Deploys</a>
         </span>
       </li>
       <li>
         <b>Told to you.</b> Routine outcomes are collected and sent as one digest per
         batch. Anything that went <em>wrong</em> ignores that entirely and pushes at once.
         <span class="knob">
-          <a href="/settings#telling-you-about-it">Telling you about it</a>
+          <a href="/settings#notifications">Notifications</a>
         </span>
       </li>
     </ol>
@@ -167,7 +167,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
     <h2>The ladder</h2>
     <p class="sub">
       One axis, four rungs: how much happens without you. Set the default per magnitude
-      under <a href="/settings#what-may-happen-without-you">Settings</a>, and override it
+      under <a href="/settings#update-policy">Settings</a>, and override it
       for one service with a <code>dockhand.policy</code> label. A label always wins.
     </p>
     <Table>

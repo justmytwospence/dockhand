@@ -45,7 +45,14 @@ export interface SettingDef {
   path: string
   kind: SettingKind
   label: string
+  /**
+   * What you need in order to fill this in: a format, a unit, a prerequisite. A
+   * fragment, not a sentence -- it sits under the control on every render, so anything
+   * longer turns a form into an essay. Empty is fine and common.
+   */
   help: string
+  /** Why this exists and what it costs you. Lives in the (i), read once. */
+  about?: string
   options?: string[]
   /** Plain-language gloss per option, shown as a legend under an enum. */
   optionHelp?: Record<string, string>
@@ -73,27 +80,27 @@ export interface SettingDef {
  * setting has one obvious home.
  */
 export const SECTIONS = [
-  ['Finding updates', 'When dockhand asks the registries what exists.'],
+  ['Scanning', 'When dockhand asks the registries what exists.'],
   [
-    'What may happen without you',
-    'The ladder, applied by how large the version jump is. A per-service `dockhand.policy` label overrides it for that service. Majors are never on it.',
+    'Update policy',
+    'How much happens without you, by how large the version jump is. A per-service `dockhand.policy` label overrides it. Majors are never on the auto rung.',
   ],
   [
-    'Reading the changelog',
+    'Changelog review',
     'A model finds and reads the release notes, then judges the update. Its verdict can only ever withhold a merge — never cause one.',
   ],
   ['Pull requests', 'Every change goes through one. It is the review surface.'],
   ['Merging', 'The only place dockhand changes the repository with nobody watching.'],
   [
-    'Drafting config changes',
+    'Config proposals',
     'When an update needs more than its tag, a model can write the rest. A pull request carrying drafted changes can never merge automatically.',
   ],
-  ['Deploying', 'A change is done when it is running, not when it is merged.'],
+  ['Deploys', 'A change is done when it is running, not when it is merged.'],
   [
-    'Telling you about it',
+    'Notifications',
     'Routine outcomes only — opened, merged, deployed, drafted, held. Failures and anything that leaves dockhand stuck always send immediately and are not configurable here, so a digest can never cause you to miss one.',
   ],
-  ['Keeping git in step', 'Publishing main, and staying out of the way while you work.'],
+  ['Git sync', 'Publishing main, and staying out of the way while you work.'],
 ] as const satisfies readonly (readonly [string, string])[]
 
 export type SectionName = (typeof SECTIONS)[number][0]
@@ -121,59 +128,69 @@ const TIER_HELP: Record<string, string> = {
 export const SETTINGS: SettingDef[] = [
   // ------------------------------------------------------------ Finding updates
   {
-    section: 'Finding updates',
+    section: 'Scanning',
     path: 'scan.cron',
     kind: 'cron',
     defaultValue: '0 0 3 * * *',
     label: 'Schedule',
-    help: 'Six fields, seconds first. Applies immediately, no restart needed.',
+    help: 'Cron, seconds first',
+    about:
+      'Applies immediately — no restart needed.',
   },
 
   // ------------------------------------------------- What may happen without you
   {
-    section: 'What may happen without you',
+    section: 'Update policy',
     path: 'defaults.patch',
     kind: 'enum',
     options: ['auto', 'manual', 'on-request', 'skip'],
     optionHelp: TIER_HELP,
     defaultValue: 'auto',
-    label: 'Patch updates',
-    help: 'x.y.Z — the smallest jump upstream offers.',
+    label: 'Patch',
+    help: 'x.y.Z',
+    about:
+      'The smallest jump upstream offers.',
   },
   {
-    section: 'What may happen without you',
+    section: 'Update policy',
     path: 'defaults.minor',
     kind: 'enum',
     options: ['auto', 'manual', 'on-request', 'skip'],
     optionHelp: TIER_HELP,
     defaultValue: 'auto',
-    label: 'Minor updates',
-    help: 'x.Y.z — new features, no promised breakage.',
+    label: 'Minor',
+    help: 'x.Y.z',
+    about:
+      'New features, no promised breakage.',
   },
   {
-    section: 'What may happen without you',
+    section: 'Update policy',
     path: 'defaults.major',
     kind: 'enum',
     options: ['manual'],
     defaultValue: 'manual',
-    label: 'Major updates',
-    help: 'X.y.z. Always a pull request you merge yourself.',
+    label: 'Major',
+    help: 'X.y.z',
+    about:
+      'Always a pull request you merge yourself. Not configurable.',
     locked: 'not configurable — a major always needs a human',
   },
   {
-    section: 'What may happen without you',
+    section: 'Update policy',
     path: 'defaults.digest',
     kind: 'enum',
     options: ['auto', 'manual', 'on-request', 'skip'],
     optionHelp: TIER_HELP,
     defaultValue: 'manual',
-    label: 'Digest bumps',
-    help: 'A pinned sha256 moved: the same tag, rebuilt. There is no changelog to read for one.',
+    label: 'Digest',
+    help: 'same tag, rebuilt',
+    about:
+      'A pinned sha256 moved. There is no changelog to read for one.',
   },
 
   // -------------------------------------------------------- Reading the changelog
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.mode',
     kind: 'enum',
     options: ['advisory', 'off'],
@@ -183,71 +200,87 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'advisory',
     label: 'Mode',
-    help: 'Advisory lets a verdict hold back an automatic merge. It can never cause one.',
+    help: '',
+    about:
+      'Advisory lets a verdict hold back an automatic merge. It can never cause one.',
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.model',
     kind: 'model',
     defaultValue: 'claude-haiku-4-5-20251001',
     label: 'Model',
-    help: 'Runs on every update, so it is the one worth keeping cheap. Pick from the list, or type an id that is not on it.',
+    help: 'runs on every update',
+    about:
+      'The one worth keeping cheap. Pick from the list, or type an id that is not on it.',
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.min_confidence',
     kind: 'enum',
     options: ['low', 'medium', 'high'],
     defaultValue: 'medium',
     label: 'Minimum confidence',
-    help: 'An approval below this is treated as a caution and waits for you.',
+    help: '',
+    about:
+      'An approval below this is treated as a caution and waits for you.',
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.block_on',
     kind: 'string',
     defaultValue: 'block, caution',
     label: 'Hold on',
-    help: 'Which verdicts hold back an automatic merge.',
+    help: '',
+    about:
+      'Which verdicts hold back an automatic merge.',
     locked: 'the damper is load-bearing; edit policy.yaml directly to change it',
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.monthly_budget_usd',
     kind: 'number',
     min: 0,
     defaultValue: '10',
-    label: 'Monthly budget (USD)',
-    help: 'Reaching it pauses analysis. Pull requests keep opening regardless.',
+    label: 'Monthly budget',
+    help: 'USD',
+    about:
+      'Reaching it pauses analysis. Pull requests keep opening regardless.',
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.web.searches',
     kind: 'int',
     min: 1,
     defaultValue: '4',
     label: 'Searches per call',
-    help: 'How many web searches a single review or draft may run.',
+    help: '',
+    about:
+      'How many web searches a single review or draft may run.',
     advanced: true,
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.web.fetches',
     kind: 'int',
     min: 1,
     defaultValue: '5',
-    label: 'Pages read per call',
-    help: 'Together with the size cap below, this sets the ceiling on what a call can cost.',
+    label: 'Pages per call',
+    help: '',
+    about:
+      'With the size cap below, this sets the ceiling on what a call costs.',
     advanced: true,
   },
   {
-    section: 'Reading the changelog',
+    section: 'Changelog review',
     path: 'claude.web.content_tokens',
     kind: 'int',
     min: 1000,
     defaultValue: '12000',
-    label: 'Max tokens per page',
-    help: 'Reading is the dominant cost: worst case per call is pages x this.',
+    label: 'Tokens per page',
+    help: '',
+    about:
+      'Reading is the dominant cost: worst case per call is pages × this.',
     advanced: true,
   },
 
@@ -258,7 +291,9 @@ export const SETTINGS: SettingDef[] = [
     kind: 'bool',
     defaultValue: 'true',
     label: 'Open pull requests',
-    help: 'Off keeps detection running but stops all pushing and PR creation.',
+    help: '',
+    about:
+      'Off keeps detection running but stops all pushing and PR creation.',
   },
   {
     section: 'Pull requests',
@@ -271,7 +306,9 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'coexist',
     label: 'Coverage',
-    help: 'Coexist exists so two updaters can never write to the same file for the same reason.',
+    help: '',
+    about:
+      'Coexist exists so two updaters can never write to the same file for the same reason.',
   },
   {
     section: 'Pull requests',
@@ -279,8 +316,10 @@ export const SETTINGS: SettingDef[] = [
     kind: 'int',
     min: 1,
     defaultValue: '5',
-    label: 'Maximum open at once',
-    help: 'New ones open as older ones are merged or closed. A backlog arriving all at once is a wall, not a queue.',
+    label: 'Max open at once',
+    help: '',
+    about:
+      'New ones open as older ones merge or close. A backlog arriving all at once is a wall, not a queue.',
   },
   {
     section: 'Pull requests',
@@ -289,7 +328,9 @@ export const SETTINGS: SettingDef[] = [
     options: ['squash', 'merge', 'rebase'],
     defaultValue: 'squash',
     label: 'Merge method',
-    help: 'Must be one the GitHub repository actually allows, or merging fails with a 405.',
+    help: '',
+    about:
+      'Must be one the GitHub repository actually allows, or merging fails with a 405.',
     advanced: true,
   },
 
@@ -300,7 +341,9 @@ export const SETTINGS: SettingDef[] = [
     kind: 'bool',
     defaultValue: 'false',
     label: 'Merge without asking',
-    help: 'Only tag-only pull requests on the auto rung, patch or minor, with no verdict withholding them. Everything else still waits for you.',
+    help: '',
+    about:
+      'Only tag-only pull requests on the auto rung, patch or minor, with no verdict withholding them. Everything else still waits for you.',
   },
   {
     section: 'Merging',
@@ -308,8 +351,10 @@ export const SETTINGS: SettingDef[] = [
     kind: 'int',
     min: 1,
     defaultValue: '3',
-    label: 'Most merges per run',
-    help: 'A ceiling so a misconfiguration merges a couple of things rather than the backlog.',
+    label: 'Max merges per run',
+    help: '',
+    about:
+      'A ceiling so a misconfiguration merges a couple of things rather than the backlog.',
   },
   {
     section: 'Merging',
@@ -323,12 +368,14 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'shadow',
     label: 'Model-decided updates',
-    help: 'Only for services labelled dockhand.policy: model — the one place a model can raise a rung rather than only lower it. The track record is on the System page.',
+    help: 'dockhand.policy: model',
+    about:
+      'The one place a model can raise a rung rather than only lower it. The track record is on the System page.',
   },
 
   // ------------------------------------------------------- Drafting config changes
   {
-    section: 'Drafting config changes',
+    section: 'Config proposals',
     path: 'propose.mode',
     kind: 'enum',
     options: ['auto', 'manual', 'off'],
@@ -339,20 +386,24 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'auto',
     label: 'Draft config changes',
-    help: 'A drafted pull request always needs a human, whatever else is set.',
+    help: '',
+    about:
+      'A drafted pull request always needs a human, whatever else is set.',
   },
   {
-    section: 'Drafting config changes',
+    section: 'Config proposals',
     path: 'claude.code_model',
     kind: 'model',
     defaultValue: 'claude-opus-5',
     label: 'Model',
-    help: 'Rare, high-stakes work — worth a stronger model than the changelog verdicts use.',
+    help: 'rare, high-stakes',
+    about:
+      'Worth a stronger model than the changelog verdicts use.',
   },
 
   // ---------------------------------------------------------------- Deploying
   {
-    section: 'Deploying',
+    section: 'Deploys',
     path: 'deploy.mode',
     kind: 'enum',
     options: ['auto', 'manual', 'off'],
@@ -363,22 +414,26 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'manual',
     label: 'After a merge',
-    help: 'Deploys run a real docker compose up -d, which re-reads the whole file.',
+    help: '',
+    about:
+      'Deploys run a real docker compose up -d, which re-reads the whole file.',
   },
   {
-    section: 'Deploying',
+    section: 'Deploys',
     path: 'deploy.health_window_s',
     kind: 'int',
     min: 10,
     defaultValue: '120',
-    label: 'Health window (seconds)',
-    help: 'How long a container must stay up and healthy before the deploy counts as good. Returns as soon as it is, so only a bad deploy costs the wait.',
+    label: 'Health window',
+    help: 'seconds',
+    about:
+      'How long a container must stay up and healthy before the deploy counts. Returns as soon as it is, so only a bad deploy costs the wait.',
     advanced: true,
   },
 
   // ------------------------------------------------------- Telling you about it
   {
-    section: 'Telling you about it',
+    section: 'Notifications',
     path: 'notify.routine',
     kind: 'enum',
     options: ['digest', 'immediate', 'off'],
@@ -389,72 +444,88 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'digest',
     label: 'Routine outcomes',
-    help: 'A dozen separate pushes is a stream nobody reads; the same dozen in one message is a summary.',
+    help: '',
+    about:
+      'A dozen separate pushes is a stream nobody reads; the same dozen in one message is a summary.',
   },
   {
-    section: 'Telling you about it',
+    section: 'Notifications',
     path: 'notify.cron',
     kind: 'cron',
     defaultValue: '0 0 8 * * *',
     label: 'Digest schedule',
-    help: 'Six fields, seconds first. Nothing is sent when nothing happened. Applies immediately, no restart needed.',
+    help: 'Cron, seconds first',
+    about:
+      'Nothing is sent when nothing happened. Applies immediately.',
   },
   {
-    section: 'Telling you about it',
+    section: 'Notifications',
     path: 'notify.ntfy',
     kind: 'enum',
     options: ['all', 'alerts', 'routine', 'off'],
     optionHelp: CHANNEL_HELP,
     defaultValue: 'all',
     label: 'Push (ntfy)',
-    help: 'Needs NTFY_TOKEN. Nothing is sent to a channel that is not configured, whatever this says.',
+    help: 'needs NTFY_TOKEN',
+    about:
+      'Nothing reaches a channel that is not configured, whatever this says.',
   },
   {
-    section: 'Telling you about it',
+    section: 'Notifications',
     path: 'notify.email',
     kind: 'enum',
     options: ['all', 'alerts', 'routine', 'off'],
     optionHelp: CHANNEL_HELP,
     defaultValue: 'all',
     label: 'Email',
-    help: 'Needs SMTP_URL and MAIL_TO in the environment. Emailed digests carry a link per item, which a push cannot.',
+    help: 'needs SMTP_URL, MAIL_TO',
+    about:
+      'Emailed digests carry a link per item, which a push cannot.',
   },
 
   // -------------------------------------------------------- Keeping git in step
   {
-    section: 'Keeping git in step',
+    section: 'Git sync',
     path: 'sync.push_main',
     kind: 'bool',
     defaultValue: 'true',
     label: 'Publish main',
-    help: 'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged. Turning this off degrades dockhand to alert-only.',
+    help: '',
+    about:
+      'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged. Off degrades dockhand to alert-only.',
   },
   {
-    section: 'Keeping git in step',
+    section: 'Git sync',
     path: 'sync.blackout',
     kind: 'windows',
     defaultValue: '(none)',
     label: 'Blackout windows',
-    help: 'Comma-separated HH:MM-HH:MM. No git or deploy work happens inside them.',
+    help: 'HH:MM-HH:MM, comma-separated',
+    about:
+      'No git or deploy work happens inside them.',
   },
   {
-    section: 'Keeping git in step',
+    section: 'Git sync',
     path: 'sync.poll_active_s',
     kind: 'int',
     min: 15,
     defaultValue: '60',
-    label: 'Poll interval, PRs open (s)',
-    help: 'How often GitHub is checked while something is awaiting merge.',
+    label: 'Poll, PRs open',
+    help: 'seconds',
+    about:
+      'How often GitHub is checked while something is awaiting merge.',
     advanced: true,
   },
   {
-    section: 'Keeping git in step',
+    section: 'Git sync',
     path: 'sync.poll_idle_s',
     kind: 'int',
     min: 30,
     defaultValue: '600',
-    label: 'Poll interval, idle (s)',
-    help: 'How often GitHub is checked when nothing is open.',
+    label: 'Poll, idle',
+    help: 'seconds',
+    about:
+      'How often GitHub is checked when nothing is open.',
     advanced: true,
   },
 ]

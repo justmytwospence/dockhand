@@ -1419,13 +1419,6 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   padding-block: 0.35rem;
 }
 
-.settings-note {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--tblr-border-color);
-  font-size: 0.82rem;
-}
-
 /* Only the active pane exists on screen. Not `visibility`, so hidden panes cost no
    layout -- but they stay in the DOM, which is what keeps their inputs in the form and
    lets Save commit every section at once exactly as it always has. */
@@ -1490,10 +1483,7 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
     white-space: nowrap;
   }
 
-  .settings-note {
-    display: none;
   }
-}
 
 .settings-panes {
   min-width: 0;

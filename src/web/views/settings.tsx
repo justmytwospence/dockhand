@@ -117,10 +117,6 @@ export const SettingsPage: FC<{
             </li>
           ))}
         </ul>
-        <p class="sub settings-note">
-          A changelog review can withhold a merge and can never cause one. The model that
-          ties these together is on <a href="/about">About</a>.
-        </p>
       </nav>
 
       <div class="settings-panes">
@@ -290,7 +286,7 @@ export const SettingsForm: FC<{
       <button type="submit" class="btn btn-primary" hx-disabled-elt="this">
         Save changes
       </button>
-      <span class="sub">Committed to the repository as one change.</span>
+      <span class="sub">Commits to git</span>
     </div>
   </form>
 )
@@ -318,20 +314,23 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
   legend = true,
 }) => {
   const changed = !def.locked && value !== def.defaultValue
+  // The (i) carries the rationale plus, where the enum has one, the gloss per option.
+  const glosses =
+    legend && def.optionHelp && !def.locked
+      ? (def.options ?? [])
+          .filter((o) => def.optionHelp?.[o])
+          .map((o) => `${o} — ${def.optionHelp![o]}`)
+          .join('\n')
+      : ''
+  const about = [def.about, glosses].filter(Boolean).join('\n\n')
+  const inline = !!def.help || !!def.locked || changed
   return (
     <div class={`setting${def.locked ? ' locked' : ''}`}>
       <label for={def.path}>
         {def.label}
-        {/* Reference material for the enum, on demand rather than always on screen. */}
-        {legend && def.optionHelp && !def.locked && (
-          <Help
-            label={def.label}
-            text={(def.options ?? [])
-              .filter((o) => def.optionHelp?.[o])
-              .map((o) => `${o} — ${def.optionHelp![o]}`)
-              .join('\n')}
-          />
-        )}
+        {/* One dot per field, carrying both the rationale and the option glosses.
+            Two would be two things to click for one question. */}
+        {about ? <Help label={def.label} text={about} /> : null}
         {changed && (
           <span class="pill accent changed" title={`default: ${def.defaultValue}`}>
             changed
@@ -345,11 +344,14 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
           <Control def={def} value={value} models={models} />
         )}
       </div>
-      <p class="help">
-        {def.locked ? <em>{def.locked}. </em> : null}
-        {def.help}
-        {changed && <span class="sub"> (default: {def.defaultValue})</span>}
-      </p>
+      {/* Rendered only when there is something to say. An empty line under every
+          control is what made this read like prose. */}
+      {inline ? (
+        <p class="help">
+          {def.locked ? <em>{def.locked}</em> : def.help}
+          {changed && <span class="sub"> · default {def.defaultValue}</span>}
+        </p>
+      ) : null}
     </div>
   )
 }
