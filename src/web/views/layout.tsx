@@ -82,8 +82,20 @@ export const Layout: FC<
     /** This page is a workspace: its content fills the region and scrolls internally,
      *  rather than flowing past the bottom of it. */
     fill?: boolean
+    /**
+     * Filters and controls for the page's data, pinned under the title as part of the
+     * fixed chrome. A toolbar belongs to the data, and on a page that IS one table the
+     * data starts at the page edge -- so this is the alternative to wrapping the whole
+     * thing in a card just to have somewhere to put the controls.
+     */
+    toolbar?: unknown
+    /**
+     * The content is a single full-width grid: no container gutters, no card. Drawing a
+     * frame around the only thing on the page is a box inside a box.
+     */
+    bleed?: boolean
   }>
-> = ({ title, path, missing, subtitle, actions, bare, fill, children }) => (
+> = ({ title, path, missing, subtitle, actions, bare, fill, toolbar, bleed, children }) => (
   <html lang="en" data-bs-theme="light">
     <head>
       <meta charset="utf-8" />
@@ -130,13 +142,18 @@ export const Layout: FC<
               difference between a screen and a document. */}
           {!bare && (
             <div class="page-header-bar">
-              <div class="container-xl">
+              <div class={bleed ? 'container-fluid' : 'container-xl'}>
                 <PageHeader title={title} subtitle={subtitle} actions={actions} />
               </div>
+              {toolbar ? (
+                <div class={`page-toolbar ${bleed ? 'container-fluid' : 'container-xl'}`}>
+                  {toolbar}
+                </div>
+              ) : null}
             </div>
           )}
-          <div class={`page-body${fill ? ' fill' : ''}`}>
-            <div class="container-xl">
+          <div class={`page-body${fill ? ' fill' : ''}${bleed ? ' bleed' : ''}`}>
+            <div class={bleed ? 'container-fluid' : 'container-xl'}>
               {missing && missing.length > 0 && <Setup missing={missing} />}
               {children}
             </div>

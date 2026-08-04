@@ -20,6 +20,40 @@ export const ActivityPage: FC<{
     path="/activity"
     missing={missing}
     fill
+    bleed
+    toolbar={
+      <ul class="nav nav-pills filters flex-nowrap">
+        <li class="nav-item">
+          <a
+            href="/activity"
+            class={`nav-link${filter.kind === 'all' && filter.level === 'all' ? ' active' : ''}`}
+          >
+            All
+          </a>
+        </li>
+        {KINDS.map((k) => (
+          <li class="nav-item">
+            {/* --k must stay on the element that contains the dot; the dot reads it. */}
+            <a
+              href={`/activity?kind=${k}${filter.level !== 'all' ? `&level=${filter.level}` : ''}`}
+              class={`nav-link${filter.kind === k ? ' active' : ''}`}
+              style={`--k: var(--k-${k})`}
+            >
+              <span class="kdot"></span>
+              {k}
+            </a>
+          </li>
+        ))}
+        <li class="nav-item ms-auto">
+          <a
+            href={`/activity?level=problems${filter.kind !== 'all' ? `&kind=${filter.kind}` : ''}`}
+            class={`nav-link problems${filter.level === 'problems' ? ' active' : ''}`}
+          >
+            problems only
+          </a>
+        </li>
+      </ul>
+    }
     actions={
       <span class="sub">
         {rows.length} event{rows.length === 1 ? '' : 's'}
@@ -27,44 +61,8 @@ export const ActivityPage: FC<{
       </span>
     }
   >
-    <div class="card card-fill">
-    <div class="card-header">
-    <ul class="nav nav-pills filters flex-nowrap">
-      <li class="nav-item">
-        <a
-          href="/activity"
-          class={`nav-link${filter.kind === 'all' && filter.level === 'all' ? ' active' : ''}`}
-        >
-          All
-        </a>
-      </li>
-      {KINDS.map((k) => (
-        <li class="nav-item">
-          {/* --k must stay on the element that contains the dot; the dot reads it. */}
-          <a
-            href={`/activity?kind=${k}${filter.level !== 'all' ? `&level=${filter.level}` : ''}`}
-            class={`nav-link${filter.kind === k ? ' active' : ''}`}
-            style={`--k: var(--k-${k})`}
-          >
-            <span class="kdot"></span>
-            {k}
-          </a>
-        </li>
-      ))}
-      <li class="nav-item ms-auto">
-        <a
-          href={`/activity?level=problems${filter.kind !== 'all' ? `&kind=${filter.kind}` : ''}`}
-          class={`nav-link problems${filter.level === 'problems' ? ' active' : ''}`}
-        >
-          problems only
-        </a>
-      </li>
-    </ul>
-    </div>
-
-    <div id="activity-table" class="table-responsive flex-fill">
+    <div id="activity-table" class="grid-scroll">
       <ActivityTable rows={rows} repo={repo} />
-    </div>
     </div>
   </Layout>
 )
@@ -76,7 +74,7 @@ export const ActivityTable: FC<{ rows: Record<string, unknown>[]; repo: string }
   rows.length === 0 ? (
     <Empty>Nothing matches this filter.</Empty>
   ) : (
-    <table class="table card-table table-vcenter table-sticky">
+    <table class="table table-vcenter table-sticky">
       <thead>
         <tr>
           <th>When</th>

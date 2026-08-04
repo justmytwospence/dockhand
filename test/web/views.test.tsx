@@ -252,3 +252,22 @@ test('nothing draws a frame inside another frame', () => {
     }
   }
 })
+
+test('card-table only appears where there is a card', () => {
+  // Tabler's card-table makes a table sit flush inside a card. On the full-bleed grid
+  // pages there is no card, so it is a modifier for a frame that does not exist --
+  // exactly the kind of leftover a refactor strands.
+  for (const [name, html] of Object.entries(R)) {
+    if (!html.includes('card-table')) continue
+    assert.match(html, /class="card[ "]/, `${name}: card-table without a card`)
+  }
+})
+
+test('the single-table pages carry no card at all', () => {
+  // A card around the only thing on a page is a box inside the page's own box.
+  for (const key of ['images', 'images-grouped', 'activity']) {
+    assert.doesNotMatch(R[key]!, /class="card[ "]/, `${key} should be full-bleed`)
+    assert.match(R[key]!, /class="page-body fill bleed"/, key)
+    assert.match(R[key]!, /class="page-toolbar/, `${key}: toolbar should be fixed chrome`)
+  }
+})

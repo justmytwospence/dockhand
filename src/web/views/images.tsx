@@ -36,6 +36,67 @@ export const ImagesPage: FC<{
     path="/images"
     missing={missing}
     fill
+    bleed
+    toolbar={
+      <>
+        <form class="imgfilters" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
+          {/* Tabler's select-group: the radio's own `checked` state drives the visual, so
+              the hand-rolled `active` class and the visually-hidden-input CSS both go. Still
+              inside the one <form>, which is what hx-include="closest form" needs. */}
+          <div class="form-selectgroup form-selectgroup-pills">
+            {FILTERS.map(([key, label]) => (
+              <label class="form-selectgroup-item">
+                <input
+                  type="radio"
+                  name="filter"
+                  value={key}
+                  class="form-selectgroup-input"
+                  checked={filter === key}
+                  hx-get="/images"
+                  hx-target="#images-table"
+                  hx-include="closest form"
+                />
+                <span class="form-selectgroup-label">{label}</span>
+              </label>
+            ))}
+          </div>
+          <div class="imgtools">
+            <div class="input-icon flex-fill">
+              <span class="input-icon-addon">
+                <IconSearch />
+              </span>
+              <input
+                type="search"
+                name="q"
+                value={q}
+                class="form-control"
+                placeholder="filter by stack, service or image…"
+                hx-get="/images"
+                hx-target="#images-table"
+                hx-include="closest form"
+                hx-trigger="input changed delay:250ms, search"
+              />
+            </div>
+            {/* A stack is a compose file, which is the unit everything else here is
+                addressed by -- deploys, labels, scope. Grouping by it is off by default
+                because the flat list is what you want when searching. */}
+            <label class="form-check form-switch form-check-inline mb-0 flex-shrink-0">
+              <input
+                type="checkbox"
+                name="group"
+                value="stack"
+                class="form-check-input"
+                checked={grouped}
+                hx-get="/images"
+                hx-target="#images-table"
+                hx-include="closest form"
+              />
+              <span class="form-check-label">Group by stack</span>
+            </label>
+          </div>
+        </form>
+      </>
+    }
     actions={
       <span class="sub">
         {services.length} shown
@@ -46,67 +107,8 @@ export const ImagesPage: FC<{
       </span>
     }
   >
-    <div class="card card-fill">
-    <form class="imgfilters card-header" hx-get="/images" hx-target="#images-table" hx-swap="innerHTML">
-      {/* Tabler's select-group: the radio's own `checked` state drives the visual, so
-          the hand-rolled `active` class and the visually-hidden-input CSS both go. Still
-          inside the one <form>, which is what hx-include="closest form" needs. */}
-      <div class="form-selectgroup form-selectgroup-pills">
-        {FILTERS.map(([key, label]) => (
-          <label class="form-selectgroup-item">
-            <input
-              type="radio"
-              name="filter"
-              value={key}
-              class="form-selectgroup-input"
-              checked={filter === key}
-              hx-get="/images"
-              hx-target="#images-table"
-              hx-include="closest form"
-            />
-            <span class="form-selectgroup-label">{label}</span>
-          </label>
-        ))}
-      </div>
-      <div class="imgtools">
-        <div class="input-icon flex-fill">
-          <span class="input-icon-addon">
-            <IconSearch />
-          </span>
-          <input
-            type="search"
-            name="q"
-            value={q}
-            class="form-control"
-            placeholder="filter by stack, service or image…"
-            hx-get="/images"
-            hx-target="#images-table"
-            hx-include="closest form"
-            hx-trigger="input changed delay:250ms, search"
-          />
-        </div>
-        {/* A stack is a compose file, which is the unit everything else here is
-            addressed by -- deploys, labels, scope. Grouping by it is off by default
-            because the flat list is what you want when searching. */}
-        <label class="form-check form-switch form-check-inline mb-0 flex-shrink-0">
-          <input
-            type="checkbox"
-            name="group"
-            value="stack"
-            class="form-check-input"
-            checked={grouped}
-            hx-get="/images"
-            hx-target="#images-table"
-            hx-include="closest form"
-          />
-          <span class="form-check-label">Group by stack</span>
-        </label>
-      </div>
-    </form>
-
-    <div id="images-table" class="table-responsive flex-fill">
+    <div id="images-table" class="grid-scroll">
       <ImagesTable services={services} statusMap={statusMap} grouped={grouped} />
-    </div>
     </div>
   </Layout>
 )
@@ -132,7 +134,7 @@ export const ImagesTable: FC<{
 
   if (!grouped) {
     return (
-      <table class="table card-table table-vcenter table-sticky">
+      <table class="table table-vcenter table-sticky">
         {HEAD}
         <tbody>
           {services.map((s) => (
@@ -150,7 +152,7 @@ export const ImagesTable: FC<{
   for (const s of services) stacks.set(s.stack, [...(stacks.get(s.stack) ?? []), s])
 
   return (
-    <table class="table card-table table-vcenter table-sticky">
+    <table class="table table-vcenter table-sticky">
       {HEAD}
       {[...stacks].map(([stack, rows]) => (
         <tbody class="stackgroup">

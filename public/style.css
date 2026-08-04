@@ -1132,7 +1132,10 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--tblr-bg-surface);
+  /* Opaque, and shadowed rather than bordered: a sticky border collapses away when the
+     table scrolls, and a row sliding under a transparent header shows through it. */
+  background: var(--tblr-body-bg);
+  box-shadow: inset 0 -1px 0 var(--tblr-border-color);
 }
 
 /* A card that fills its parent and scrolls internally instead of growing the page. */
@@ -1462,4 +1465,90 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
 /* Empty states inside a scroll container still want the card's padding. */
 .card-fill > .table-responsive > .nothing {
   padding: 1.25rem;
+}
+
+/* ------------------------------------------------------------- full-bleed grids
+
+   Activity and Images are one table each. A card around the only thing on the page is
+   a box drawn inside the page's own box, and it pushes the toolbar into a header strip
+   *inside* that box -- two frames and an indent before you reach a single row of data.
+
+   So on these pages the toolbar joins the fixed chrome under the title, and the table
+   runs edge to edge in the scroll region. A card earns its keep when it separates one
+   thing from another beside it; here there is nothing to separate from. */
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.6rem;
+}
+
+.page-toolbar .filters {
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.page-toolbar .filters::-webkit-scrollbar {
+  display: none;
+}
+
+.page-toolbar .imgfilters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.page-toolbar .imgtools {
+  flex: 1 1 20rem;
+}
+
+/* No gutters: the table starts where the page does. */
+.page-body.bleed > .container-fluid {
+  padding-inline: 0;
+}
+
+.grid-scroll {
+  width: 100%;
+}
+
+@media (min-width: 992px) {
+  .page-body.bleed {
+    padding-block: 0;
+  }
+
+  .page-body.fill.bleed > .container-fluid {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* The table owns the scrolling; the page around it does not move at all. */
+  .grid-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+}
+
+/* Flush to the page edge rather than inset by a card. */
+.grid-scroll > .table {
+  margin-bottom: 0;
+}
+
+.grid-scroll > .table > :not(caption) > * > *:first-child {
+  padding-left: var(--tblr-page-padding, 1rem);
+}
+
+.grid-scroll > .table > :not(caption) > * > *:last-child {
+  padding-right: var(--tblr-page-padding, 1rem);
+}
+
+.grid-scroll > .nothing {
+  padding: 1.5rem var(--tblr-page-padding, 1rem);
 }
