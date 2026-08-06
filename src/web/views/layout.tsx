@@ -20,7 +20,7 @@ export interface MissingSetting {
 export const THEME_SCRIPT = `(function(){
   var q = matchMedia('(prefers-color-scheme: dark)');
   function pick(){
-    var s = localStorage.getItem('dockhand-theme') || 'auto';
+    var s = localStorage.getItem('shipshape-theme') || 'auto';
     return s === 'auto' ? (q.matches ? 'dark' : 'light') : s;
   }
   function apply(){
@@ -31,7 +31,7 @@ export const THEME_SCRIPT = `(function(){
   }
   apply();
   q.addEventListener('change', apply);
-  window.dockhandSetTheme = function(v){ localStorage.setItem('dockhand-theme', v); apply(); };
+  window.shipshapeSetTheme = function(v){ localStorage.setItem('shipshape-theme', v); apply(); };
 })()`
 
 /**
@@ -102,7 +102,7 @@ export const Layout: FC<
       {/* viewport-fit=cover so env(safe-area-inset-*) is non-zero on a notched phone;
           without it the mobile tab bar sits under the home indicator. */}
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-      <title>{title} &middot; dockhand</title>
+      <title>{title} &middot; shipshape</title>
       {/* First, and NOT deferred. Bootstrap 5.3 has no data-bs-theme="auto" -- auto has
           to be resolved to light or dark before the stylesheets paint, or the page
           flashes the wrong theme on every navigation. */}
@@ -124,7 +124,7 @@ export const Layout: FC<
       <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)" />
       <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)" />
       <meta name="apple-mobile-web-app-capable" content="yes" />
-      <meta name="apple-mobile-web-app-title" content="dockhand" />
+      <meta name="apple-mobile-web-app-title" content="shipshape" />
       <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
       <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
       <script dangerouslySetInnerHTML={{ __html: SW_SCRIPT }} defer></script>
@@ -263,10 +263,10 @@ export const RowNote: FC<{ cols: number; cls?: string; children?: unknown }> = (
   </tr>
 )
 
-/** Shown until dockhand knows which repository to watch. */
+/** Shown until shipshape knows which repository to watch. */
 const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
   <div class="alert alert-warning">
-    <strong>dockhand is not configured yet.</strong>
+    <strong>shipshape is not configured yet.</strong>
     <p>Set the following, then restart the container:</p>
     <table class="kv">
       <tbody>
@@ -280,8 +280,8 @@ const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
     </table>
     <p>A minimal compose service looks like this:</p>
     <pre class="rawfile">{`services:
-  dockhand:
-    image: ghcr.io/justmytwospence/dockhand:latest   # or build: ./app
+  shipshape:
+    image: ghcr.io/justmytwospence/shipshape:latest   # or build: ./app
     environment:
       # The path must be identical inside and outside the container.
       REPO_DIR: /srv/compose
@@ -294,7 +294,7 @@ const Setup: FC<{ missing: MissingSetting[] }> = ({ missing }) => (
       - /var/run/docker.sock:/var/run/docker.sock`}</pre>
     <p>
       Full instructions are in the{' '}
-      <a class="ext" href="https://github.com/justmytwospence/dockhand#readme" target="_blank" rel="noopener">
+      <a class="ext" href="https://github.com/justmytwospence/shipshape#readme" target="_blank" rel="noopener">
         README
       </a>
       .

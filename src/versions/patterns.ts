@@ -186,7 +186,7 @@ export function classify(from: ParsedTag, to: ParsedTag, kind: PatternKind): Mag
 
 /**
  * Best-effort inference of the pattern kind from a concrete tag, used by the label
- * migration to seed `dockhand.pattern`. Order matters: the most specific shapes are
+ * migration to seed `shipshape.pattern`. Order matters: the most specific shapes are
  * tested first.
  */
 export function inferPattern(tag: string): PatternKind | null {

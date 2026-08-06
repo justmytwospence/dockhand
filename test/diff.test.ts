@@ -4,8 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const DATA = mkdtempSync(join(tmpdir(), 'dockhand-diff-'))
-const REPO = mkdtempSync(join(tmpdir(), 'dockhand-repo-'))
+const DATA = mkdtempSync(join(tmpdir(), 'shipshape-diff-'))
+const REPO = mkdtempSync(join(tmpdir(), 'shipshape-repo-'))
 process.env.DATA_DIR = DATA
 process.env.HOMELAB_REPO = REPO
 
@@ -28,8 +28,8 @@ services:
     image: ghcr.io/example/app:v2.7.5
     restart: unless-stopped
     labels:
-      dockhand.watch: "true"
-      dockhand.pattern: v-semver
+      shipshape.watch: "true"
+      shipshape.pattern: v-semver
 
   db:
     container_name: demo_db

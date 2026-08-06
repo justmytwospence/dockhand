@@ -1,5 +1,5 @@
 /**
- * One-time migration: derive `dockhand.*` labels from the existing `wud.*` labels and
+ * One-time migration: derive `shipshape.*` labels from the existing `wud.*` labels and
  * from each image's current tag, and write them into the compose files.
  *
  * Editing is byte-level surgery, never a YAML re-serialisation: the label block is
@@ -113,8 +113,8 @@ function planFor(svc: ScannedService): Plan | null {
   }
   if (!pattern) return null // reported separately as needing a human
 
-  labels.push(['dockhand.watch', '"true"'])
-  labels.push(['dockhand.pattern', pattern])
+  labels.push(['shipshape.watch', '"true"'])
+  labels.push(['shipshape.pattern', pattern])
 
   // A refinement is only carried over if the tag actually pinned in the file satisfies
   // it. Some `wud.tag.include` values disagree with their own image -- error-pages is
@@ -124,7 +124,7 @@ function planFor(svc: ScannedService): Plan | null {
   const include = manual?.tagInclude ?? svc.wud.tagInclude
   if (include) {
     if (manual || tagSatisfies(svc.ref.tag, include)) {
-      labels.push(['dockhand.tag.include', `'${include}'`])
+      labels.push(['shipshape.tag.include', `'${include}'`])
     } else {
       mismatched.push(
         `${id}: dropped tag.include ${include} -- does not match pinned tag "${svc.ref.tag}"`,
@@ -135,20 +135,20 @@ function planFor(svc: ScannedService): Plan | null {
   // WUD's gate (`wud.trigger.exclude: dockercompose.auto`) marks the datastores and
   // infrastructure that must never auto-apply. That intent carries over directly.
   const policy = manual?.policy ?? (svc.wud.gated ? 'gated' : null)
-  if (policy) labels.push(['dockhand.policy', policy])
+  if (policy) labels.push(['shipshape.policy', policy])
 
   // Unwatched-by-WUD services (sidecar databases, mostly) become detection-only: they
   // appear in the inventory and get PRs, but nothing auto-merges. That is coverage WUD
   // never had.
-  if (!policy && svc.wud.watch !== 'true') labels.push(['dockhand.policy', 'manual'])
+  if (!policy && svc.wud.watch !== 'true') labels.push(['shipshape.policy', 'manual'])
 
   const source = manual?.source ?? linkTemplateToSource(svc.wud.link)
-  if (source) labels.push(['dockhand.source', source])
+  if (source) labels.push(['shipshape.source', source])
 
   // A stack that is intentionally stopped still gets labels, so reviving it later needs
   // no migration -- but it must never auto-update while dormant.
-  if (svc.unwatchable === 'disabled' && !labels.some(([k]) => k === 'dockhand.policy')) {
-    labels.push(['dockhand.policy', 'manual'])
+  if (svc.unwatchable === 'disabled' && !labels.some(([k]) => k === 'shipshape.policy')) {
+    labels.push(['shipshape.policy', 'manual'])
   }
 
   return { file: svc.composeFile, service: svc.service, stack: svc.stack, labels, reason }
@@ -278,7 +278,7 @@ function escapeRe(s: string): string {
 
 function main(): void {
   const dry = process.argv.includes('--dry')
-  const services = scanRepo(env.repoDir, ['dockhand'])
+  const services = scanRepo(env.repoDir, ['shipshape'])
 
   const plans: Plan[] = []
   const skipped: string[] = []

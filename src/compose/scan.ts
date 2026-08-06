@@ -6,7 +6,7 @@ import { parseImageRef, type ImageRef } from '../images/ref.ts'
 /**
  * Reads the desired state out of the compose files themselves.
  *
- * Critically, `dockhand.*` labels are read HERE -- from the files in git -- and never
+ * Critically, `shipshape.*` labels are read HERE -- from the files in git -- and never
  * from running containers. Updaters that read live Docker metadata inherit a nasty
  * failure: recreating a container by cloning its running config means a label edited in
  * the compose file never takes effect, and the stale value survives every subsequent
@@ -27,18 +27,18 @@ export interface ScannedService {
   hasBuild: boolean
   watched: boolean
   unwatchable: UnwatchableReason | null
-  /** dockhand.* label values, already split out. */
+  /** shipshape.* label values, already split out. */
   pattern: string | null
   tagInclude: string | null
   policyLabel: string | null
   sourceLabel: string | null
   claudeLabel: string | null
   deployLabel: string | null
-  /** `dockhand.pr: on-request` -- detected but never auto-PR'd; the operator opens it. */
+  /** `shipshape.pr: on-request` -- detected but never auto-PR'd; the operator opens it. */
   prLabel: string | null
-  /** `dockhand.propose` -- how far a drafted config change may reach. See propose/paths. */
+  /** `shipshape.propose` -- how far a drafted config change may reach. See propose/paths. */
   proposeLabel: string | null
-  /** `dockhand.group: <name>` -- forces services into one PR when the heuristic misses. */
+  /** `shipshape.group: <name>` -- forces services into one PR when the heuristic misses. */
   groupLabel: string | null
   /** wud.* equivalents, used by the migration script and the parity report. */
   wud: { watch: string | null; tagInclude: string | null; gated: boolean; link: string | null }
@@ -128,16 +128,24 @@ export function scanComposeFile(repoRoot: string, file: string, excludeStacks: s
     const profiles = toStringArray(svc.profiles)
     const hasBuild = svc.build !== undefined
 
-    const pattern = labels['dockhand.pattern'] ?? null
-    const tagInclude = labels['dockhand.tag.include'] ?? null
-    const policyLabel = labels['dockhand.policy'] ?? null
-    const sourceLabel = labels['dockhand.source'] ?? null
-    const claudeLabel = labels['dockhand.claude'] ?? null
-    const deployLabel = labels['dockhand.deploy'] ?? null
-    const prLabel = labels['dockhand.pr'] ?? null
-    const proposeLabel = labels['dockhand.propose'] ?? null
-    const groupLabel = labels['dockhand.group'] ?? null
-    const watchLabel = labels['dockhand.watch'] ?? null
+    // Both prefixes, new first. The rename from `dockhand.*` swept 140 services, and a
+    // scan that ran between the parser changing and the labels changing would have seen
+    // every one of them as unwatched -- no error, updates just silently stop being
+    // found. Reading both makes the two changes independent. The fallback can go once
+    // no compose file in the wild carries the old prefix.
+    const label = (k: string): string | null =>
+      labels[`shipshape.${k}`] ?? labels[`dockhand.${k}`] ?? null
+
+    const pattern = label('pattern')
+    const tagInclude = label('tag.include')
+    const policyLabel = label('policy')
+    const sourceLabel = label('source')
+    const claudeLabel = label('claude')
+    const deployLabel = label('deploy')
+    const prLabel = label('pr')
+    const proposeLabel = label('propose')
+    const groupLabel = label('group')
+    const watchLabel = label('watch')
 
     let unwatchable: UnwatchableReason | null = null
     if (excludeStacks.includes(stack)) unwatchable = 'excluded'

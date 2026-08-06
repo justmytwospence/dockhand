@@ -292,7 +292,7 @@ async function persist(
         // But the tier is re-derived every scan rather than frozen at insert time.
         // Labels live in the compose files precisely so that editing one takes effect
         // without recreating anything; if the tier were only ever set on insert, adding
-        // `dockhand.pr: on-request` to a service with an outstanding update would
+        // `shipshape.pr: on-request` to a service with an outstanding update would
         // silently do nothing until that update happened to be superseded.
         if (same.tier !== tier) {
           const nextState = tier === 'held' ? 'held' : same.state === 'held' ? 'detected' : same.state

@@ -13,12 +13,12 @@ import { spliceValue, setValue, SETTINGS, SECTIONS } from '../src/settings.ts'
  * predated four whole sections of settings, so every save failed on the first missing
  * key and reported nothing about the twenty-five that were fine.
  */
-const FIXTURE = `# dockhand policy -- the single place update semantics are declared.
+const FIXTURE = `# shipshape policy -- the single place update semantics are declared.
 
 merge_method: squash
 
 sync:
-  # Kill-switch. Setting this false degrades dockhand to alert-only.
+  # Kill-switch. Setting this false degrades shipshape to alert-only.
   push_main: true
   blackout: ["00:45-02:30"]
   poll_active_s: 60
@@ -55,8 +55,8 @@ test('replaces a nested value and leaves every other byte alone', () => {
 test('comments above and beside a key survive', () => {
   const out = spliceValue(FIXTURE, 'prs.max_open', '8')!
   assert.ok(out.includes('  max_open: 8   # trailing comment worth preserving'))
-  assert.ok(out.includes('# dockhand policy -- the single place update semantics are declared.'))
-  assert.ok(out.includes('  # Kill-switch. Setting this false degrades dockhand to alert-only.'))
+  assert.ok(out.includes('# shipshape policy -- the single place update semantics are declared.'))
+  assert.ok(out.includes('  # Kill-switch. Setting this false degrades shipshape to alert-only.'))
 })
 
 test('a top-level key is reachable too', () => {
@@ -183,8 +183,8 @@ test('every settable key survives a full-page save against a partial file', () =
     assert.notEqual(got, undefined, `${def.path} is missing after the save`)
   }
   // The file the operator hand-wrote is still recognisable underneath.
-  assert.ok(text.includes('# dockhand policy -- the single place update semantics are declared.'))
-  assert.ok(text.includes('  # Kill-switch. Setting this false degrades dockhand to alert-only.'))
+  assert.ok(text.includes('# shipshape policy -- the single place update semantics are declared.'))
+  assert.ok(text.includes('  # Kill-switch. Setting this false degrades shipshape to alert-only.'))
 })
 
 /** A syntactically plausible value per key -- the splicer does not care which. */

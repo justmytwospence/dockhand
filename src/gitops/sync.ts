@@ -176,10 +176,10 @@ async function fastForward(): Promise<{ status: 'ok' } | { status: 'failed'; rea
     const reason = `local edits conflict with the merged change in: ${conflicting.join(', ')}`
     logEvent({ level: 'error', kind: 'sync', message: 'sync refused', detail: reason })
     await notify({
-      title: 'dockhand: sync blocked',
+      title: 'shipshape: sync blocked',
       body:
         `A pull request merged, but these files have conflicting local edits:\n` +
-        `${conflicting.join('\n')}\n\nCommit or discard them and dockhand will resume.`,
+        `${conflicting.join('\n')}\n\nCommit or discard them and shipshape will resume.`,
       priority: 4,
       tags: ['warning'],
     })
@@ -218,10 +218,10 @@ async function rebaseOntoOrigin(): Promise<{ status: 'ok' } | { status: 'failed'
     detail: reason,
   })
   await notify({
-    title: 'dockhand: rebase conflict',
+    title: 'shipshape: rebase conflict',
     body:
       `Local commits could not be replayed onto origin/main.\n${r.stderr.slice(0, 300)}\n\n` +
-      `The checkout was restored; resolve by hand and dockhand will resume.`,
+      `The checkout was restored; resolve by hand and shipshape will resume.`,
     priority: 4,
     tags: ['warning'],
   })
@@ -231,8 +231,8 @@ async function rebaseOntoOrigin(): Promise<{ status: 'ok' } | { status: 'failed'
 async function pause(reason: string): Promise<void> {
   logEvent({ level: 'warn', kind: 'sync', message: 'sync paused', detail: reason })
   await notifyOnce('sync', reason, {
-    title: 'dockhand: paused',
-    body: `${reason}.\n\nNothing was changed. dockhand resumes once the checkout is back on main and clean of in-progress operations.`,
+    title: 'shipshape: paused',
+    body: `${reason}.\n\nNothing was changed. shipshape resumes once the checkout is back on main and clean of in-progress operations.`,
     priority: 3,
     tags: ['pause_button'],
   })

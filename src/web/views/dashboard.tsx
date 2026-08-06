@@ -286,7 +286,7 @@ export const PendingSections: FC<{
             </select>
             <Help
               label="Contents"
-              text="“With config changes” carries changes dockhand drafted; “Edited” carries yours. Neither can ever merge automatically."
+              text="“With config changes” carries changes shipshape drafted; “Edited” carries yours. Neither can ever merge automatically."
             />
           </div>
         )}
@@ -383,7 +383,7 @@ const Row: FC<{ row: PendingRow; repo: string; action?: 'open-pr' | 'dismiss' }>
               edited
             </span>
           ) : r.pr_scope === 'proposed' ? (
-            <span class="pill accent scope" title="dockhand drafted config changes to accompany this bump">
+            <span class="pill accent scope" title="shipshape drafted config changes to accompany this bump">
               + config
             </span>
           ) : (

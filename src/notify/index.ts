@@ -6,7 +6,7 @@ import * as email from './email.ts'
  * Delivery, and which channel gets what.
  *
  * Two kinds of message, established in digest.ts and not configurable: **alerts** are
- * things that went wrong and always go out at once; **routine** is what dockhand did as
+ * things that went wrong and always go out at once; **routine** is what shipshape did as
  * intended, which batches. Orthogonal to that, each channel says what it wants to
  * receive -- so "push for what is broken, email for the morning summary" is
  * `ntfy: alerts` plus `email: routine`, and "both, everywhere" is the default.

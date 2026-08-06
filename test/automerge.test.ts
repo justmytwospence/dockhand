@@ -4,7 +4,7 @@ import { canAutoMerge, shouldOpenPr } from '../src/policy.ts'
 
 /**
  * These cover the decision, not the merge call. The merge call is three lines; the
- * decision is the whole feature, and it is the only thing in dockhand that can change
+ * decision is the whole feature, and it is the only thing in shipshape that can change
  * the repository with nobody watching.
  */
 

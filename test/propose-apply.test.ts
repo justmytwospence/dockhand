@@ -21,8 +21,8 @@ const MAP_STYLE = `services:
       APP_URL: "https://app.example.com"
       SECRET: \${APP_SECRET}
     labels:
-      dockhand.watch: "true"
-      dockhand.pattern: v-semver
+      shipshape.watch: "true"
+      shipshape.pattern: v-semver
 
   other:
     image: postgres:16
@@ -99,12 +99,12 @@ test('list-form environment blocks are handled in their own style', () => {
 test('labels are edited the same way as environment', () => {
   const r = ok(
     applyOps(MAP_STYLE, 'app', [
-      { op: 'set_label', key: 'dockhand.pattern', value: 'semver' },
-      { op: 'remove_label', key: 'dockhand.watch' },
+      { op: 'set_label', key: 'shipshape.pattern', value: 'semver' },
+      { op: 'remove_label', key: 'shipshape.watch' },
     ]),
   )
-  assert.ok(r.text.includes('dockhand.pattern: semver'))
-  assert.ok(!r.text.includes('dockhand.watch'))
+  assert.ok(r.text.includes('shipshape.pattern: semver'))
+  assert.ok(!r.text.includes('shipshape.watch'))
 })
 
 test('a missing block is created rather than refused', () => {

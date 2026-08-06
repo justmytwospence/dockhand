@@ -12,7 +12,7 @@ import { notify } from '../notify/index.ts'
  *
  * Four things make this narrower than "run compose and hope":
  *
- * 1. **It must never deploy itself.** `docker compose up -d dockhand` replaces the
+ * 1. **It must never deploy itself.** `docker compose up -d shipshape` replaces the
  *    container running this code, killing the process mid-command -- so the deploy
  *    reports nothing, the database records nothing, and the operator learns about it
  *    from a gap in the log. Excluded unconditionally, not by policy.
@@ -24,7 +24,7 @@ import { notify } from '../notify/index.ts'
  *
  * 3. **An image bump does not re-read image-provided environment.** `up -d` clones the
  *    running container's config, so a variable baked into the old image survives into
- *    the new one and can point at a file that no longer exists. `dockhand.deploy:
+ *    the new one and can point at a file that no longer exists. `shipshape.deploy:
  *    rm-first` forces the remove-then-create that re-reads it.
  *
  * 4. **A deploy that starts is not a deploy that worked.** Compose exits 0 as soon as
@@ -79,7 +79,7 @@ export function refuseReason(
   opts: { selfStack: string; excluded: string[]; blackout: boolean },
 ): string | null {
   if (target.stack === opts.selfStack) {
-    return 'dockhand does not deploy itself — the container running the deploy would be replaced mid-command'
+    return 'shipshape does not deploy itself — the container running the deploy would be replaced mid-command'
   }
   if (opts.excluded.includes(target.stack)) return `${target.stack} is an excluded stack`
   if (target.services.length === 0) return 'no services to deploy'
@@ -222,7 +222,7 @@ export async function deployForPr(
       detail: `${outcome.reason}${outcome.stderr ? `\n${outcome.stderr}` : ''}`,
     })
     await notify({
-      title: `dockhand: deploy failed — ${target.stack}`,
+      title: `shipshape: deploy failed — ${target.stack}`,
       body: `#${prNumber} merged but ${target.services.join(', ')} did not deploy.\n\n${outcome.reason}\n\nThe change is in the checkout; the service is running whatever it was.`,
       priority: 4,
       tags: ['rotating_light'],
@@ -240,7 +240,7 @@ export async function deployForPr(
       detail: outcome.detail,
     })
     await notify({
-      title: `dockhand: ${target.stack} unhealthy after deploy`,
+      title: `shipshape: ${target.stack} unhealthy after deploy`,
       body: `#${prNumber}: ${outcome.detail}\n\nThe new image is running and failing. Roll back with git revert and redeploy if it does not recover.`,
       priority: 5,
       tags: ['rotating_light'],

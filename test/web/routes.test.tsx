@@ -18,7 +18,7 @@ let app: { request: (path: string, init?: RequestInit) => Promise<Response> }
 let dir: string
 
 before(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'dockhand-test-'))
+  dir = mkdtempSync(join(tmpdir(), 'shipshape-test-'))
   process.env.DATA_DIR = dir
   delete process.env.REPO_DIR
   delete process.env.HOMELAB_REPO
@@ -55,7 +55,7 @@ test('every fragment returns a bare fragment, never a whole document', async () 
 
 test('the unconfigured deployment gets setup instructions, not a crash', async () => {
   const html = await (await app.request('/')).text()
-  assert.match(html, /dockhand is not configured yet/)
+  assert.match(html, /shipshape is not configured yet/)
   assert.match(html, /REPO_DIR/)
 })
 

@@ -35,7 +35,7 @@ export interface UpdateGroup {
  *
  *   A. the same resolved upstream source repo -- immich-server and
  *      immich-machine-learning both resolve to immich-app/immich;
- *   B. an explicit `dockhand.group` label, for pairs whose annotations resolve
+ *   B. an explicit `shipshape.group` label, for pairs whose annotations resolve
  *      differently or not at all.
  *
  * The target tag must match in both cases. Members drifting to different versions are
@@ -100,9 +100,9 @@ export function sanitise(s: string): string {
 
 /** Branch name for a group or singleton. */
 export function branchFor(g: UpdateGroup): string {
-  if (g.key) return `dockhand/${g.key}`
+  if (g.key) return `shipshape/${g.key}`
   const m = g.members[0]!
-  return `dockhand/${m.stack}--${sanitise(m.service)}--${sanitise(m.to_tag)}`
+  return `shipshape/${m.stack}--${sanitise(m.service)}--${sanitise(m.to_tag)}`
 }
 
 /** Lookup helpers backed by the resolution cache plus the live compose labels. */

@@ -10,16 +10,16 @@ const target = (over: Partial<DeployTarget> = {}): DeployTarget => ({
 })
 
 const opts = (over: Partial<Parameters<typeof refuseReason>[1]> = {}) => ({
-  selfStack: 'dockhand',
+  selfStack: 'shipshape',
   excluded: [] as string[],
   blackout: false,
   ...over,
 })
 
-test('dockhand never deploys itself', () => {
-  // `docker compose up -d dockhand` replaces the container running the deploy, so the
+test('shipshape never deploys itself', () => {
+  // `docker compose up -d shipshape` replaces the container running the deploy, so the
   // command dies mid-flight and nothing records why.
-  const r = refuseReason(target({ stack: 'dockhand' }), opts())
+  const r = refuseReason(target({ stack: 'shipshape' }), opts())
   assert.match(r ?? '', /does not deploy itself/)
 })
 

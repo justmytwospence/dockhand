@@ -13,16 +13,16 @@ test('the boundary comes from where the compose file sits', () => {
 })
 
 test('compose-dir reaches a sibling config file and nothing beyond it', () => {
-  assert.equal(canWrite('authelia/configuration.yml', b('compose-dir'), 'dockhand').ok, true)
-  assert.equal(canWrite('traefik/dynamic/mcp.yaml', b('compose-dir'), 'dockhand').ok, false)
+  assert.equal(canWrite('authelia/configuration.yml', b('compose-dir'), 'shipshape').ok, true)
+  assert.equal(canWrite('traefik/dynamic/mcp.yaml', b('compose-dir'), 'shipshape').ok, false)
   // ...which repo scope does reach.
-  assert.equal(canWrite('traefik/dynamic/mcp.yaml', b('repo'), 'dockhand').ok, true)
+  assert.equal(canWrite('traefik/dynamic/mcp.yaml', b('repo'), 'shipshape').ok, true)
 })
 
 test('the narrow rungs reach exactly one file', () => {
-  assert.equal(canWrite('authelia/docker-compose.yaml', b('service'), 'dockhand').ok, true)
-  assert.equal(canWrite('authelia/configuration.yml', b('service'), 'dockhand').ok, false)
-  assert.equal(canWrite('authelia/configuration.yml', b('compose-file'), 'dockhand').ok, false)
+  assert.equal(canWrite('authelia/docker-compose.yaml', b('service'), 'shipshape').ok, true)
+  assert.equal(canWrite('authelia/configuration.yml', b('service'), 'shipshape').ok, false)
+  assert.equal(canWrite('authelia/configuration.yml', b('compose-file'), 'shipshape').ok, false)
 })
 
 test('unstructured and JSON files are editable; only binaries are not', () => {
@@ -30,17 +30,17 @@ test('unstructured and JSON files are editable; only binaries are not', () => {
   // right, only that the applier did exactly what was named — and an exactly-once
   // anchor gives that same guarantee with no parse at all.
   for (const f of ['authelia/entrypoint.sh', 'authelia/Dockerfile', 'authelia/users.json', 'authelia/app.conf']) {
-    assert.equal(canWrite(f, b('compose-dir'), 'dockhand').ok, true, f)
+    assert.equal(canWrite(f, b('compose-dir'), 'shipshape').ok, true, f)
   }
   for (const f of ['authelia/logo.png', 'authelia/data.sqlite3', 'authelia/fonts.woff2']) {
-    const r = canWrite(f, b('compose-dir'), 'dockhand')
+    const r = canWrite(f, b('compose-dir'), 'shipshape')
     assert.equal(r.ok, false, f)
     assert.match(r.ok === false ? r.reason : '', /binary/)
   }
 })
 
 test('a binary hiding behind an innocent extension is caught by its content', () => {
-  const r = canWrite('authelia/notes.txt', b('compose-dir'), 'dockhand', 'text\0with a NUL')
+  const r = canWrite('authelia/notes.txt', b('compose-dir'), 'shipshape', 'text\0with a NUL')
   assert.equal(r.ok, false)
   assert.match(r.ok === false ? r.reason : '', /binary/)
 })
@@ -56,22 +56,22 @@ test('path operations work on JSON, which the same parser already handles', () =
 test('no scope reaches its own guardrails or anything executable', () => {
   // A rule that can be configured away is not a limit. `repo` is the widest there is.
   for (const f of [
-    'dockhand/config/policy.yaml',
-    'dockhand/docker-compose.yaml',
+    'shipshape/config/policy.yaml',
+    'shipshape/docker-compose.yaml',
     '.github/workflows/ci.yaml',
     'bin/homelab.yaml',
   ]) {
-    assert.equal(canWrite(f, b('repo'), 'dockhand').ok, false, f)
+    assert.equal(canWrite(f, b('repo'), 'shipshape').ok, false, f)
   }
-  assert.equal(isForbidden('dockhand/config/policy.yaml', 'dockhand'), true)
+  assert.equal(isForbidden('shipshape/config/policy.yaml', 'shipshape'), true)
   // ...and the self-stack is whatever this deployment calls it.
   assert.equal(isForbidden('updater/config/policy.yaml', 'updater'), true)
-  assert.equal(isForbidden('updater/config/policy.yaml', 'dockhand'), false)
+  assert.equal(isForbidden('updater/config/policy.yaml', 'shipshape'), false)
 })
 
 test('traversal and absolute paths do not escape the repository', () => {
   for (const f of ['../outside/x.yaml', '/etc/passwd.yaml', 'authelia/../../x.yaml']) {
-    assert.equal(canWrite(f, b('repo'), 'dockhand').ok, false, f)
+    assert.equal(canWrite(f, b('repo'), 'shipshape').ok, false, f)
   }
 })
 
@@ -83,7 +83,7 @@ test('a typo narrows; the widest words are still recognised', () => {
 })
 
 test('none reaches nothing at all', () => {
-  assert.equal(canWrite('authelia/docker-compose.yaml', b('none'), 'dockhand').ok, false)
+  assert.equal(canWrite('authelia/docker-compose.yaml', b('none'), 'shipshape').ok, false)
 })
 
 const CONFIG = `theme: light

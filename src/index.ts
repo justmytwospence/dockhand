@@ -12,7 +12,7 @@ function main(): void {
   logEvent({
     level: 'info',
     kind: 'system',
-    message: 'dockhand started',
+    message: 'shipshape started',
     detail: `merge=${policy.merge_method} push_main=${policy.sync.push_main} claude=${policy.claude.mode}`,
   })
 

@@ -11,7 +11,7 @@ export interface SelectOptions {
   currentTag: string
   availableTags: string[]
   kind: PatternKind
-  /** Optional refinement applied on top of the pattern (the `dockhand.tag.include`
+  /** Optional refinement applied on top of the pattern (the `shipshape.tag.include`
    *  label). A tag must satisfy BOTH to be considered. */
   tagInclude?: string | null
   /** Custom regex when kind === 'regex'. */
@@ -33,11 +33,11 @@ export type Comparison =
    *  deliberate constraint stays visible instead of looking like genuine currency. */
   | { status: 'up-to-date'; constrainedFrom?: string }
   /** The pinned tag does not parse under its declared pattern -- wrong or missing
-   *  `dockhand.pattern`, or the operator moved the service onto a different tag series. */
+   *  `shipshape.pattern`, or the operator moved the service onto a different tag series. */
   | { status: 'unparseable-current'; detail: string }
   /** `latest`/`digest`: no ordering exists. Movement is detected by digest instead. */
   | { status: 'not-orderable' }
-  /** A `dockhand.tag.include` that does not compile. Failing closed here is intentional:
+  /** A `shipshape.tag.include` that does not compile. Failing closed here is intentional:
    *  ignoring a broken refinement would silently widen the candidate set. */
   | { status: 'bad-refinement'; detail: string }
 

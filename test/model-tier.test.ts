@@ -92,7 +92,7 @@ test('every guard is evaluated, so shadow mode shows all of them', () => {
 })
 
 test('a refused update lands on a human, not on the magnitude default', () => {
-  // `model` replaces whatever static label the service had, and dockhand cannot know
+  // `model` replaces whatever static label the service had, and shipshape cannot know
   // what that was. Deriving the fallback from magnitude would silently rewrite intent:
   // deluge-gluetun is pinned `manual` because it is a torrent stack's VPN container,
   // and a patch landing on `auto` the moment a guard refused is the exact inversion of

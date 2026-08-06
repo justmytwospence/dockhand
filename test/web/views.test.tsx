@@ -99,7 +99,7 @@ test('every page is a complete document and names itself', () => {
   for (const key of ['dashboard', 'images', 'activity', 'settings', 'system', 'about']) {
     const html = R[key]!
     assert.match(html, /^<html lang="en" data-bs-theme="(light|dark)">/, key)
-    assert.match(html, /<title>[^<]+ · dockhand<\/title>/, key)
+    assert.match(html, /<title>[^<]+ · shipshape<\/title>/, key)
     assert.match(html, /<meta name="viewport"/, key)
   }
 })
@@ -115,7 +115,7 @@ test('the theme is resolved before anything paints', () => {
   // JS. If that script were deferred or placed after the stylesheets, every navigation
   // would flash the wrong theme first.
   const head = R.layout!.slice(0, R.layout!.indexOf('</head>'))
-  const script = head.indexOf('dockhand-theme')
+  const script = head.indexOf('shipshape-theme')
   const tabler = head.indexOf('tabler.min.css')
   const app = head.indexOf('style.css')
   assert.ok(script > -1 && script < tabler, 'theme script must precede the stylesheets')

@@ -1,4 +1,4 @@
-/* dockhand app styles.
+/* shipshape app styles.
  *
  * Loaded AFTER /static/tabler.min.css, which is Tabler 1.4.0 (MIT) with Bootstrap 5.3.7
  * and Popper bundled inside. Vendored, not linked from a CDN, so the app works on a LAN
@@ -1059,7 +1059,7 @@ tbody.stackgroup + tbody.stackgroup .stackhead th {
    The app frame
    ==========================================================================
 
-   This is what makes dockhand stop behaving like a document.
+   This is what makes shipshape stop behaving like a document.
 
    A content page scrolls as a whole: chrome scrolls away, and the page is as tall as
    its content. A tool is laid out to the VIEWPORT -- chrome is fixed, and the content

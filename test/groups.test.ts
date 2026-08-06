@@ -40,7 +40,7 @@ test('services sharing an upstream repo and a target version travel together', (
   assert.equal(groups.length, 1)
   assert.equal(groups[0]!.members.length, 2)
   assert.equal(groups[0]!.key, 'immich--group-immich--v3.1.0')
-  assert.equal(branchFor(groups[0]!), 'dockhand/immich--group-immich--v3.1.0')
+  assert.equal(branchFor(groups[0]!), 'shipshape/immich--group-immich--v3.1.0')
 })
 
 test('two containers off one image group without any resolution', () => {
@@ -97,7 +97,7 @@ test('a lone service is a singleton, not a one-member group', () => {
   const groups = groupUpdates([m('miniflux', 'miniflux', '2.3.3')], src({}), lbl({}))
   assert.equal(groups.length, 1)
   assert.equal(groups[0]!.key, null)
-  assert.equal(branchFor(groups[0]!), 'dockhand/miniflux--miniflux--2.3.3')
+  assert.equal(branchFor(groups[0]!), 'shipshape/miniflux--miniflux--2.3.3')
 })
 
 test('branch names stay readable and legal', () => {
@@ -118,7 +118,7 @@ test('branch names stay readable and legal', () => {
     src({}),
     lbl({}),
   )
-  assert.match(branchFor(g[0]!), /^dockhand\/immich--immich-redis--9@[0-9a-f]{12}$/)
+  assert.match(branchFor(g[0]!), /^shipshape\/immich--immich-redis--9@[0-9a-f]{12}$/)
 })
 
 test('grouping is deterministic so reruns produce the same branches', () => {

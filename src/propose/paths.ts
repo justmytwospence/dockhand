@@ -28,9 +28,9 @@ import { dirname, relative, resolve, sep } from 'node:path'
  *
  * **Never its own guardrails, never anything executable.** A proposal can only add a
  * commit a human reviews — but a diff review is exactly where "one line in policy.yaml"
- * slips past, and dockhand's policy file is where its own limits live. Workflows and
+ * slips past, and shipshape's policy file is where its own limits live. Workflows and
  * `bin/` are executable on merge or on next run. Excluded at every scope including
- * `repo`, for the same reason dockhand never deploys itself: a rule that can be
+ * `repo`, for the same reason shipshape never deploys itself: a rule that can be
  * configured away is not a limit.
  */
 
@@ -39,7 +39,7 @@ export type ProposeScope = 'none' | 'service' | 'compose-file' | 'compose-dir' |
 export const SCOPES: ProposeScope[] = ['none', 'service', 'compose-file', 'compose-dir', 'repo']
 
 /**
- * Read `dockhand.propose`. Unset means `service`.
+ * Read `shipshape.propose`. Unset means `service`.
  *
  * `off` is the original spelling of `none`. An unrecognised value narrows to `service`
  * rather than widening — a typo must never grant reach.
@@ -200,7 +200,7 @@ export function describeBoundary(
       return [
         services,
         'You may also change files elsewhere in the repository: path operations for',
-        "YAML and JSON, replace_text for anything else. dockhand's own configuration,",
+        "YAML and JSON, replace_text for anything else. shipshape's own configuration,",
         'CI workflows, scripts, and .env files are never writable.',
         'Prefer the narrowest change that works: reaching outside this stack needs a',
         'reason from the upstream documentation.',

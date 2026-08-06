@@ -7,12 +7,12 @@ import { getDb, logEvent } from '../db.ts'
  * The budget matters more than it looks. Docker Hub counts a GET on
  * `registry-1.docker.io/v2/*​/manifests/*` as a *pull* -- 100 per 6h anonymous, 200
  * authenticated, per IP. A probe of this host found it already at 82/100 remaining
- * before dockhand existed. So: tag listing goes through the vendor API (not billed),
+ * before shipshape existed. So: tag listing goes through the vendor API (not billed),
  * existence checks use HEAD (not billed), and manifest/config GETs are billed, cached
  * by digest forever, and refused below a reserve floor.
  */
 
-const USER_AGENT = 'dockhand/0.1 (+https://github.com/justmytwospence/dockhand)'
+const USER_AGENT = 'shipshape/0.1 (+https://github.com/justmytwospence/shipshape)'
 
 /** Never spend the last slice of the Hub budget: a `docker compose pull` during a
  *  deploy needs headroom, and being locked out mid-deploy is far worse than a delayed

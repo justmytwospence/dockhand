@@ -25,7 +25,7 @@ export function configured(): boolean {
  * One transport, created lazily and reused.
  *
  * nodemailer pools and reconnects on its own, and building a transport per message would
- * open a TCP connection and do a TLS handshake for every line dockhand ever writes.
+ * open a TCP connection and do a TLS handshake for every line shipshape ever writes.
  */
 let transport: Transporter | null = null
 

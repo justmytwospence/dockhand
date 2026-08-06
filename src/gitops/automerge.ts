@@ -10,14 +10,14 @@ import { normaliseSourceUrl } from '../resolver/index.ts'
 /**
  * Merging what policy already allows, without a human.
  *
- * This is the only place in dockhand that can change the repository without someone
+ * This is the only place in shipshape that can change the repository without someone
  * pressing something, so the gating is the feature and the merge call is an afterthought.
  *
  * Five conditions, all required:
  *
  * 1. `merge.auto` is on. Off by default and off in this deployment: turning it on is
  *    an operator decision, not a consequence of upgrading.
- * 2. The pull request is still exactly what dockhand wrote — `scope = 'tag-only'` and
+ * 2. The pull request is still exactly what shipshape wrote — `scope = 'tag-only'` and
  *    not user-owned. A drafted proposal (`proposed`) or a human edit (`modified`)
  *    permanently disqualifies it, because nothing has reviewed those changes.
  * 3. `canAutoMerge()` passes for every update in the group: the auto tier, a patch or
@@ -115,7 +115,7 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     }),
   )
 
-  // `dockhand.claude: required` flips a service to fail-closed: rather than falling back
+  // `shipshape.claude: required` flips a service to fail-closed: rather than falling back
   // to static policy when no verdict exists, it stalls. This was previously hardcoded
   // false here, which made the label parse, store, and render while changing nothing --
   // the most expensive kind of inert, because the operator believes they opted in.
@@ -142,7 +142,7 @@ export function decide(prId: number, number: number, scope: string, userOwned: b
     //
     // The `linked` guard asks how the upstream repository was identified, and the
     // resolution cache cannot answer for a service whose upstream is known only from a
-    // `dockhand.source` label -- resolveSource short-circuits on the label and never
+    // `shipshape.source` label -- resolveSource short-circuits on the label and never
     // writes a row. So the label is folded in here, where the compose files are already
     // in hand, rather than left to make the guard quietly unsatisfiable.
     tier = resolveModelTier(
@@ -285,7 +285,7 @@ type EffectiveTierResolved = 'auto' | 'manual' | 'held' | 'skip'
  * Where a refused update lands.
  *
  * Always `manual` — a human — and deliberately not the magnitude default. `model`
- * replaces whatever static label the service had, and dockhand cannot know what that
+ * replaces whatever static label the service had, and shipshape cannot know what that
  * was, so deriving the fallback from magnitude silently rewrites the operator's intent:
  * a service pinned to `manual` that switches to `model` would land on `auto` for a
  * patch the moment a guard refused. That is the opposite of what asking for review

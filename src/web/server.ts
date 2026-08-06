@@ -396,8 +396,8 @@ export function createApp(): Hono {
       )
     }
     const r = await sendEmail({
-      subject: 'dockhand: test message',
-      text: 'If you are reading this, dockhand can send you email.\n\nSent from the Settings page.',
+      subject: 'shipshape: test message',
+      text: 'If you are reading this, shipshape can send you email.\n\nSent from the Settings page.',
     })
     return c.html(
       r.ok
@@ -624,6 +624,6 @@ function readPackageVersion(): string {
 export function startServer(): void {
   const app = createApp()
   serve({ fetch: app.fetch, port: env.port }, (info) => {
-    console.log(`[system] dockhand listening on :${info.port}`)
+    console.log(`[system] shipshape listening on :${info.port}`)
   })
 }

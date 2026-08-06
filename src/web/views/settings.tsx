@@ -11,7 +11,7 @@ import { PROMPTS, type PromptName } from '../../prompts/index.ts'
  * Two things it has to do that a list of form fields does not. First, order: the
  * sections follow the path an update actually takes, so the page reads as the pipeline
  * rather than as whatever order the fields were declared in. Second, weight: a knob that
- * changes *what dockhand may do* is not the same kind of thing as one that changes how
+ * changes *what shipshape may do* is not the same kind of thing as one that changes how
  * many pages a model may read, and showing them at the same size is how twenty-six
  * settings become a wall. The second kind folds away.
  *

@@ -4,7 +4,7 @@ import { notify } from './index.ts'
 import { escapeHtml } from './email.ts'
 
 /**
- * One notification per batch, not one per thing dockhand did.
+ * One notification per batch, not one per thing shipshape did.
  *
  * The split this rests on is between two kinds of message, and it is deliberately not
  * configurable:
@@ -83,7 +83,7 @@ export async function routine(item: DigestItem): Promise<void> {
 
   if (policy.notify.routine === 'immediate') {
     await notify({
-      title: `dockhand: ${item.summary}`,
+      title: `shipshape: ${item.summary}`,
       body: item.detail ?? item.summary,
       kind: 'routine',
       tags: ['package'],
@@ -129,7 +129,7 @@ function group(rows: Row[]): Grouped | null {
   }
   // A count in the title is what makes the notification worth expanding or not.
   return {
-    title: rows.length === 1 ? `dockhand: ${rows[0]!.summary}` : `dockhand: ${rows.length} updates`,
+    title: rows.length === 1 ? `shipshape: ${rows[0]!.summary}` : `shipshape: ${rows.length} updates`,
     sections,
   }
 }

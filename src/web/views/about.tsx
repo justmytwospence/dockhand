@@ -26,7 +26,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
     missing={missing}
     subtitle="How this thing decides, in one page."
   >
-    <h2>What dockhand does</h2>
+    <h2>What shipshape does</h2>
     <p class="sub">
       It reads the compose files in <code>{repo || 'your repo'}</code>, asks the registries
       what newer image tags exist, and turns each one into a pull request that bumps the{' '}
@@ -51,7 +51,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
       <li>
         <b>Found.</b> A nightly scan compares every watched image against its registry.
         <span class="knob">
-          <code>dockhand.watch</code>, <code>dockhand.pattern</code>,{' '}
+          <code>shipshape.watch</code>, <code>shipshape.pattern</code>,{' '}
           <a href="/settings#scanning">Scanning</a>
         </span>
       </li>
@@ -59,7 +59,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         <b>Placed on the ladder.</b> How large the jump is, plus any per-service label,
         decides how much may happen without you.
         <span class="knob">
-          <code>dockhand.policy</code>,{' '}
+          <code>shipshape.policy</code>,{' '}
           <a href="/settings#update-policy">Update policy</a>
         </span>
       </li>
@@ -69,14 +69,14 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         body links the release notes for the target version, the project, and the image's
         own documentation, so deciding does not start with a search.
         <span class="knob">
-          <code>dockhand.group</code>, <a href="/settings#pull-requests">Pull requests</a>
+          <code>shipshape.group</code>, <a href="/settings#pull-requests">Pull requests</a>
         </span>
       </li>
       <li>
         <b>Read.</b> The model resolves the upstream project, reads what it released, and
         writes a verdict into the pull request body: approve, caution, or block.
         <span class="knob">
-          <code>dockhand.source</code>,{' '}
+          <code>shipshape.source</code>,{' '}
           <a href="/settings#changelog-review">Changelog review</a>
         </span>
       </li>
@@ -85,13 +85,13 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         second commit can carry the config changes it needs. That pull request then always
         waits for a person.
         <span class="knob">
-          <code>dockhand.propose</code>,{' '}
+          <code>shipshape.propose</code>,{' '}
           <a href="/settings#config-proposals">Config proposals</a>
         </span>
       </li>
       <li>
         <b>Merged.</b> By you, or — for tag-only pull requests on the auto rung with a
-        clean verdict — by dockhand.
+        clean verdict — by shipshape.
         <span class="knob">
           <a href="/settings#merging">Merging</a>
         </span>
@@ -100,7 +100,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         <b>Deployed.</b> The checkout fast-forwards and the stack comes up, then is
         watched until it is healthy.
         <span class="knob">
-          <code>dockhand.deploy</code>, <a href="/settings#deploys">Deploys</a>
+          <code>shipshape.deploy</code>, <a href="/settings#deploys">Deploys</a>
         </span>
       </li>
       <li>
@@ -132,7 +132,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
           </td>
           <td>
             A deploy failed. A service came up unhealthy. Sync is stuck on a conflict and
-            dockhand has stopped.
+            shipshape has stopped.
           </td>
           <td class="sub">immediately, always</td>
         </tr>
@@ -168,7 +168,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
     <p class="sub">
       One axis, four rungs: how much happens without you. Set the default per magnitude
       under <a href="/settings#update-policy">Settings</a>, and override it
-      for one service with a <code>dockhand.policy</code> label. A label always wins.
+      for one service with a <code>shipshape.policy</code> label. A label always wins.
     </p>
     <Table>
       <thead>
@@ -182,7 +182,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         <Rung
           name="auto"
           cls="ok"
-          what="A pull request opens and dockhand merges it, unless the changelog review objects."
+          what="A pull request opens and shipshape merges it, unless the changelog review objects."
           when="the service is disposable and its upstream is well behaved"
         />
         <Rung
@@ -223,22 +223,22 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         there is nothing to judge.
       </li>
       <li>
-        <b>Any pull request carrying more than an image line</b> — drafted by dockhand or
+        <b>Any pull request carrying more than an image line</b> — drafted by shipshape or
         edited by you. Nothing has reviewed those changes.
       </li>
       <li>
-        <b>A branch you have pushed to.</b> It becomes yours; dockhand comments instead of
+        <b>A branch you have pushed to.</b> It becomes yours; shipshape comments instead of
         force-pushing.
       </li>
       <li>
-        <b>dockhand's own stack, and its own policy file.</b> A limit that can be
+        <b>shipshape's own stack, and its own policy file.</b> A limit that can be
         configured away is not a limit.
       </li>
     </ul>
 
     <h2>The one bounded exception</h2>
     <p class="sub">
-      A service labelled <code>dockhand.policy: model</code> asks the review to decide
+      A service labelled <code>shipshape.policy: model</code> asks the review to decide
       whether an update is routine, instead of deciding it by version magnitude. It is the
       only place a model can raise a rung rather than only lower one, so promotion needs
       every one of: the image resolves to a real upstream; <em>every URL the verdict cited
@@ -279,7 +279,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
           <td class="sub">immediately</td>
         </tr>
         <tr>
-          <td class="mono nowrap">dockhand.* labels</td>
+          <td class="mono nowrap">shipshape.* labels</td>
           <td>
             Per-service data and exceptions, so they travel with the thing they describe.
             Read from the compose <em>files</em>, never from running containers.
@@ -305,7 +305,7 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
 
     <h2>Labels</h2>
     <p class="sub">
-      On the service, in its compose file. Only <code>dockhand.watch</code> is required.
+      On the service, in its compose file. Only <code>shipshape.watch</code> is required.
     </p>
     <Table>
       <thead>
@@ -316,49 +316,49 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
         </tr>
       </thead>
       <tbody>
-        <Label name="dockhand.watch" values='"true"' what="Opt this service in. Nothing else is watched." />
+        <Label name="shipshape.watch" values='"true"' what="Opt this service in. Nothing else is watched." />
         <Label
-          name="dockhand.pattern"
+          name="shipshape.pattern"
           values="semver, v-semver, semver-minor, semver-quad, major-only, semver-variant, lsio-ls, date, digest, latest, regex…"
           what="The shape of this image's tags, so a comparison is possible at all. Inferred from the pinned tag when absent."
         />
         <Label
-          name="dockhand.tag.include"
+          name="shipshape.tag.include"
           values="a regex"
           what="Narrow the candidates — hold a major, or keep to one flavour. A newer release it suppresses is shown as constrained rather than hidden."
         />
         <Label
-          name="dockhand.policy"
+          name="shipshape.policy"
           values="auto | manual | on-request | skip | model"
           what="This service's rung, overriding the magnitude defaults."
         />
         <Label
-          name="dockhand.pr"
+          name="shipshape.pr"
           values="on-request"
-          what="The original spelling of the on-request rung. Still honoured; dockhand.policy now expresses the whole ladder in one label."
+          what="The original spelling of the on-request rung. Still honoured; shipshape.policy now expresses the whole ladder in one label."
         />
         <Label
-          name="dockhand.source"
+          name="shipshape.source"
           values="a GitHub URL"
           what="Where the release notes actually live, for the ~half of images whose OCI annotation is missing or points at a packaging repo."
         />
         <Label
-          name="dockhand.claude"
+          name="shipshape.claude"
           values="required"
           what="Fail closed: refuse to auto-merge this service without a verdict, rather than falling back to static policy."
         />
         <Label
-          name="dockhand.propose"
+          name="shipshape.propose"
           values="none | service | compose-file | compose-dir | repo"
           what="How far a drafted config change may reach, derived from where the compose file sits. Defaults to this service's own block."
         />
         <Label
-          name="dockhand.group"
+          name="shipshape.group"
           values="a name"
           what="Force services into one pull request when the shared-upstream heuristic misses them."
         />
         <Label
-          name="dockhand.deploy"
+          name="shipshape.deploy"
           values="rm-first"
           what="Remove and recreate rather than update, so environment baked into the old image cannot survive the bump."
         />
@@ -372,13 +372,13 @@ export const AboutPage: FC<{ policy: Policy; repo: string; missing?: MissingSett
           <th>the live checkout</th>
           <td>
             The only place deploys run. Touched solely to fetch, fast-forward and bring
-            services up — dockhand stands down entirely whenever it is off{' '}
+            services up — shipshape stands down entirely whenever it is off{' '}
             <code>main</code> or mid-operation, so it never fights you for the working
             tree.
           </td>
         </tr>
         <tr>
-          <th>dockhand's own clone</th>
+          <th>shipshape's own clone</th>
           <td>
             All branch, edit, commit and push work happens here, which is why your
             uncommitted work is irrelevant to it.

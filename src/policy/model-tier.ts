@@ -1,14 +1,14 @@
 /**
  * Letting the model decide what is routine, without letting it be talked into it.
  *
- * Everywhere else in dockhand the model is a one-directional damper: its verdict can
+ * Everywhere else in shipshape the model is a one-directional damper: its verdict can
  * withhold a merge and can never cause one. That asymmetry is what makes it safe to
  * read release notes, which are untrusted text from the internet — the worst a hostile
  * changelog achieves is a stopped update.
  *
  * This module is the single place that inverts it, so the inversion is bounded here
  * rather than spread through the merge path. A service must opt in with
- * `dockhand.policy: model`, and even then promotion requires every guard below. Any
+ * `shipshape.policy: model`, and even then promotion requires every guard below. Any
  * failure falls back to the static tier, which for a major is `manual` — a human.
  *
  * The guards exist because "the model read the changelog and it looked fine" is not a

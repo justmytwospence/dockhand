@@ -70,7 +70,7 @@ function referenceSection(g: UpdateGroup, sources: Map<number, string | null>): 
     if (!source) {
       lines.push(
         `  <sub>No upstream repository resolved for this image, so the review had no release notes to read. ` +
-          `A \`dockhand.source\` label on the service fixes that permanently.</sub>`,
+          `A \`shipshape.source\` label on the service fixes that permanently.</sub>`,
       )
     }
   }
@@ -116,13 +116,13 @@ ${rows}
 
 ${referenceSection(g, sources)}
 
-<!-- dockhand:verdict:start -->
+<!-- shipshape:verdict:start -->
 ### Changelog analysis
 
 ${analysis}
-<!-- dockhand:verdict:end -->
+<!-- shipshape:verdict:end -->
 
 ---
-<sub>Opened by [dockhand](https://github.com/justmytwospence/dockhand). Merging this deploys the change on the host.</sub>
-<!-- dockhand: stack=${m0.stack} services=${g.members.map((m) => m.service).join(',')} from=${m0.from_tag} to=${m0.to_tag} -->`
+<sub>Opened by [shipshape](https://github.com/justmytwospence/shipshape). Merging this deploys the change on the host.</sub>
+<!-- shipshape: stack=${m0.stack} services=${g.members.map((m) => m.service).join(',')} from=${m0.from_tag} to=${m0.to_tag} -->`
 }

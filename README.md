@@ -1,4 +1,4 @@
-# dockhand
+# shipshape
 
 A Docker image update bot for a single-host Docker Compose homelab.
 
@@ -27,13 +27,13 @@ but has two problems here:
 2. **No extension point for an LLM.** Renovate has no hook that can write to a PR body,
    so any AI summary has to be a separate bot commenting afterwards.
 
-dockhand resolves the source repo in three tiers — OCI annotations, then a curated
+shipshape resolves the source repo in three tiers — OCI annotations, then a curated
 override map (the LinuxServer API's `project_url` field resolves their entire tier for
 free), then Claude web search for the residue — and caches the answer permanently.
 
 It also fixes a subtler thing. WUD's compose trigger recreates a container by cloning the
 *running* container's config and swapping only the image, so it never re-reads the
-compose file. Label and image-env changes silently never apply. dockhand deploys with a
+compose file. Label and image-env changes silently never apply. shipshape deploys with a
 real `docker compose up -d`, and reads its own configuration from the compose files in
 git rather than from live container labels, so that failure class cannot occur.
 
@@ -84,11 +84,11 @@ and a key it omits is one nobody reading it knows exists.
 
 One axis — **how much happens without you** — with four rungs. Set the default per
 version magnitude in `policy.yaml`; override it for one service with a
-`dockhand.policy` label, which always wins.
+`shipshape.policy` label, which always wins.
 
 | Rung | What happens |
 |---|---|
-| `auto` | A pull request opens and dockhand merges it, unless the changelog review objects. |
+| `auto` | A pull request opens and shipshape merges it, unless the changelog review objects. |
 | `manual` | A pull request opens. You merge it. |
 | `on-request` | Nothing opens. The update is listed until you ask for a pull request. |
 | `skip` | Not tracked at all. |
@@ -119,7 +119,7 @@ config.
 
 ## Running it yourself
 
-dockhand watches a git repository full of Docker Compose files, so it needs to know
+shipshape watches a git repository full of Docker Compose files, so it needs to know
 which repository and where that checkout lives on disk. Nothing else is required to
 start.
 
@@ -131,10 +131,10 @@ start.
 | `GITHUB_REPO` | **yes** | — | `owner/repo` of that repository, for pull requests. |
 | `GITHUB_TOKEN` | for PRs | — | Fine-grained PAT scoped to that repo: **Contents** read+write, **Pull requests** read+write. |
 | `ANTHROPIC_API_KEY` | for analysis | — | Without it PRs still open, labelled `needs-analysis`. |
-| `POLICY_FILE` | no | `$REPO_DIR/dockhand/config/policy.yaml` | Where the tracked policy file lives. |
-| `SELF_STACK` | no | `dockhand` | Stack directory holding dockhand, excluded so it never updates itself. |
-| `BOT_EMAIL` | no | `dockhand@localhost` | Git author for dockhand's commits. |
-| `DATA_DIR` | no | `/data` | SQLite database and dockhand's own working clone. |
+| `POLICY_FILE` | no | `$REPO_DIR/shipshape/config/policy.yaml` | Where the tracked policy file lives. |
+| `SELF_STACK` | no | `shipshape` | Stack directory holding shipshape, excluded so it never updates itself. |
+| `BOT_EMAIL` | no | `shipshape@localhost` | Git author for shipshape's commits. |
+| `DATA_DIR` | no | `/data` | SQLite database and shipshape's own working clone. |
 | `PORT` / `TZ` | no | `8080` / `UTC` | |
 | `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN` | no | — | Push notifications. |
 | `SMTP_URL`, `MAIL_TO` | no | — | Email. Both are needed; either alone counts as off. `MAIL_FROM` defaults to `BOT_EMAIL`. |
@@ -145,14 +145,14 @@ Start it with nothing set and it will tell you what is missing rather than crash
 ### Why the mount path must match
 
 `docker compose` resolves relative volume paths (`./data`) and derives the project name
-**client-side**, before it talks to the daemon. If dockhand saw your repo at a different
+**client-side**, before it talks to the daemon. If shipshape saw your repo at a different
 path than the host does, it would hand the daemon paths that do not exist. So the bind
 mount is `/your/path:/your/path`, not `/your/path:/repo`.
 
 ```yaml
 services:
-  dockhand:
-    build: ./app          # or image: ghcr.io/justmytwospence/dockhand:latest
+  shipshape:
+    build: ./app          # or image: ghcr.io/justmytwospence/shipshape:latest
     restart: unless-stopped
     user: "1000:1000"     # match the owner of the checkout
     environment:
@@ -173,45 +173,45 @@ because it is designed to sit behind one you already run.
 
 ### Labelling services
 
-dockhand only watches services that opt in, via labels on the service in your compose
+shipshape only watches services that opt in, via labels on the service in your compose
 file. It reads them from the **files**, not from running containers, so a label change
 takes effect on the next scan without recreating anything.
 
 ```yaml
     labels:
-      dockhand.watch: "true"
-      dockhand.pattern: semver     # semver | v-semver | semver-minor | v-semver-minor
+      shipshape.watch: "true"
+      shipshape.pattern: semver     # semver | v-semver | semver-minor | v-semver-minor
                                    #  | semver-quad | major-only | v-major-only
                                    #  | semver-variant | semver-minor-variant
                                    #  | major-variant | lsio-ls | lsio-r-ls | date
                                    #  | digest | latest | regex
       # Optional:
-      dockhand.tag.include: '^\d{1,3}\.\d+\.\d+$$'  # narrow the candidates ($$ escapes $)
-      dockhand.policy: manual      # auto | manual | on-request | skip | model
+      shipshape.tag.include: '^\d{1,3}\.\d+\.\d+$$'  # narrow the candidates ($$ escapes $)
+      shipshape.policy: manual      # auto | manual | on-request | skip | model
                                    #   this service's rung. `gated` is accepted and
                                    #   means `manual`. Anything unrecognised narrows
                                    #   to `manual` rather than widening.
-      dockhand.pr: on-request      # the original spelling of the on-request rung,
-                                   #   still honoured; dockhand.policy now expresses
+      shipshape.pr: on-request      # the original spelling of the on-request rung,
+                                   #   still honoured; shipshape.policy now expresses
                                    #   the whole ladder in one label
-      dockhand.source: https://github.com/owner/repo   # if the image lacks an OCI source label
-      dockhand.propose: service    # none | service | compose-file | compose-dir | repo
+      shipshape.source: https://github.com/owner/repo   # if the image lacks an OCI source label
+      shipshape.propose: service    # none | service | compose-file | compose-dir | repo
                                    #   how far a drafted change may reach, derived from
                                    #   where the compose file sits. Any text file inside
                                    #   the boundary is editable. Default `service`.
-      dockhand.claude: required    # refuse to auto-merge without a verdict
-      dockhand.group: mygroup      # force services into one PR
-      dockhand.deploy: rm-first    # recreate rather than update (re-reads image env)
+      shipshape.claude: required    # refuse to auto-merge without a verdict
+      shipshape.group: mygroup      # force services into one PR
+      shipshape.deploy: rm-first    # recreate rather than update (re-reads image env)
 ```
 
 ### Letting the model decide (opt-in, off by default)
 
-`dockhand.policy: model` defers the auto-versus-review question to the changelog
+`shipshape.policy: model` defers the auto-versus-review question to the changelog
 review, instead of deciding it by version magnitude. It is the one place a model can
 *raise* a rung rather than only lower it, so promotion requires all of:
 
 - the image resolves to a real upstream (its own OCI annotation, a curated override,
-  LinuxServer's API, or your `dockhand.source` label);
+  LinuxServer's API, or your `shipshape.source` label);
 - **every URL the verdict cited lives under that upstream repository** — this is the
   actual guard. Web search is domain-restricted but page fetches are not, and GitHub
   hosts content anyone can create, so "it turned up in a search" proves nothing;
@@ -229,7 +229,7 @@ and nothing acts on them, so you can see the track record before deciding whethe
 when you would rather not maintain them.
 
 If you already label services for another updater, `npm run migrate-labels` derives
-`dockhand.*` labels from `wud.*` ones and writes them in place, validating each
+`shipshape.*` labels from `wud.*` ones and writes them in place, validating each
 refinement against the tag actually pinned.
 
 ### Policy
@@ -277,9 +277,9 @@ scan:
 ```
 
 `scope: coexist` is for running alongside an updater that already applies routine
-patches itself — dockhand then takes only what such a tool leaves alone (majors, digest
+patches itself — shipshape then takes only what such a tool leaves alone (majors, digest
 pins, anything not on the auto tier), so the two can never write to the same file for
-the same reason. Use `full` when dockhand is your only updater.
+the same reason. Use `full` when shipshape is your only updater.
 
 ### Notifications
 
@@ -311,7 +311,7 @@ email and reports the server's own error.
 ### One-time repository settings
 
 Allow the merge method you configured, and enable auto-delete of head branches.
-dockhand pushes `main` as part of its loop: a branch cut from a stale `origin/main`
+shipshape pushes `main` as part of its loop: a branch cut from a stale `origin/main`
 silently reverts unpushed local commits when it merges, so publishing is a
 precondition, not a preference. `sync.push_main: false` disables it, which also
 disables pull requests.

@@ -64,7 +64,7 @@ export interface SettingDef {
   section: SectionName
   /**
    * Tuning rather than policy: correct out of the box, folded away by default. The
-   * distinction is whether getting it wrong changes *what dockhand may do* (never
+   * distinction is whether getting it wrong changes *what shipshape may do* (never
    * advanced) or only how fast or how thoroughly it does it (advanced).
    */
   advanced?: boolean
@@ -80,17 +80,17 @@ export interface SettingDef {
  * setting has one obvious home.
  */
 export const SECTIONS = [
-  ['Scanning', 'When dockhand asks the registries what exists.'],
+  ['Scanning', 'When shipshape asks the registries what exists.'],
   [
     'Update policy',
-    'How much happens without you, by how large the version jump is. A per-service `dockhand.policy` label overrides it. Majors are never on the auto rung.',
+    'How much happens without you, by how large the version jump is. A per-service `shipshape.policy` label overrides it. Majors are never on the auto rung.',
   ],
   [
     'Changelog review',
     'A model finds and reads the release notes, then judges the update. Its verdict can only ever withhold a merge — never cause one.',
   ],
   ['Pull requests', 'Every change goes through one. It is the review surface.'],
-  ['Merging', 'The only place dockhand changes the repository with nobody watching.'],
+  ['Merging', 'The only place shipshape changes the repository with nobody watching.'],
   [
     'Config proposals',
     'When an update needs more than its tag, a model can write the rest. A pull request carrying drafted changes can never merge automatically.',
@@ -98,7 +98,7 @@ export const SECTIONS = [
   ['Deploys', 'A change is done when it is running, not when it is merged.'],
   [
     'Notifications',
-    'Routine outcomes only — opened, merged, deployed, drafted, held. Failures and anything that leaves dockhand stuck always send immediately and are not configurable here, so a digest can never cause you to miss one.',
+    'Routine outcomes only — opened, merged, deployed, drafted, held. Failures and anything that leaves shipshape stuck always send immediately and are not configurable here, so a digest can never cause you to miss one.',
   ],
   ['Git sync', 'Publishing main, and staying out of the way while you work.'],
 ] as const satisfies readonly (readonly [string, string])[]
@@ -113,14 +113,14 @@ export type SectionName = (typeof SECTIONS)[number][0]
 const CHANNEL_HELP: Record<string, string> = {
   all: 'everything: failures as they happen, and the routine digest',
   alerts: 'only what went wrong — a failed deploy, an unhealthy service, a stuck sync',
-  routine: 'only the digest of what dockhand did as intended',
+  routine: 'only the digest of what shipshape did as intended',
   off: 'nothing at all',
 }
 
 /** Plain-language gloss for the one enum that carries the whole model. */
 const TIER_HELP: Record<string, string> = {
-  auto: 'dockhand opens a pull request and merges it, unless the changelog review says otherwise',
-  manual: 'dockhand opens a pull request; you merge it',
+  auto: 'shipshape opens a pull request and merges it, unless the changelog review says otherwise',
+  manual: 'shipshape opens a pull request; you merge it',
   'on-request': 'nothing is opened — the update is listed on the dashboard until you ask for a pull request',
   skip: 'not tracked at all',
 }
@@ -302,7 +302,7 @@ export const SETTINGS: SettingDef[] = [
     options: ['coexist', 'full'],
     optionHelp: {
       coexist: 'take only what another updater leaves alone — majors, digest pins, and anything off the auto rung',
-      full: 'dockhand is the only updater; it handles everything',
+      full: 'shipshape is the only updater; it handles everything',
     },
     defaultValue: 'coexist',
     label: 'Coverage',
@@ -368,7 +368,7 @@ export const SETTINGS: SettingDef[] = [
     },
     defaultValue: 'shadow',
     label: 'Model-decided updates',
-    help: 'dockhand.policy: model',
+    help: 'shipshape.policy: model',
     about:
       'The one place a model can raise a rung rather than only lower it. The track record is on the System page.',
   },
@@ -492,7 +492,7 @@ export const SETTINGS: SettingDef[] = [
     label: 'Publish main',
     help: '',
     about:
-      'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged. Off degrades dockhand to alert-only.',
+      'Required for pull requests: a branch cut from a stale origin reverts unpushed work when merged. Off degrades shipshape to alert-only.',
   },
   {
     section: 'Git sync',
@@ -607,7 +607,7 @@ export function applySettings(changes: Record<string, string>): ApplyResult {
         ...botIdentity(),
         'commit',
         '-m',
-        `chore(dockhand): settings: ${applied.join(', ')}`,
+        `chore(shipshape): settings: ${applied.join(', ')}`,
         '--',
         rel,
       ],

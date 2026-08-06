@@ -45,7 +45,7 @@ export function startScheduler(): void {
 /**
  * The digest clock, separate from the scan's.
  *
- * They are different questions -- "when should dockhand go and look" and "when do you
+ * They are different questions -- "when should shipshape go and look" and "when do you
  * want to hear about it" -- and tying them together would mean an operator who scans
  * hourly gets hourly pushes. The default sits a few hours after the default scan so a
  * night's work has landed before the summary goes out.
@@ -150,7 +150,7 @@ async function fire(): Promise<void> {
   }
 
   // Scans only read registries, so a blackout does not strictly bind them -- but the
-  // window exists to keep dockhand away from WUD's nightly rewrite, and an operator who
+  // window exists to keep shipshape away from WUD's nightly rewrite, and an operator who
   // moves the cron into it should get the protection anyway.
   if (inBlackout(policy)) {
     const delayMs = msUntilBlackoutEnds(policy.sync.blackout) + 60_000 + Math.random() * 60_000

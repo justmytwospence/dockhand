@@ -94,7 +94,7 @@ test('a drafted proposal is not a human edit', () => {
   ]
   // On its own the patch reads as modified...
   assert.equal(classifyPatch(proposalPatch, false), 'modified')
-  // ...and that is exactly the state poll.ts must override when dockhand still owns the
+  // ...and that is exactly the state poll.ts must override when shipshape still owns the
   // branch, or the `proposed` badge is destroyed one poll after it is set.
 })
 

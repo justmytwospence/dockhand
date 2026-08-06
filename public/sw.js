@@ -1,5 +1,5 @@
 /**
- * dockhand's service worker.
+ * shipshape's service worker.
  *
  * Its whole design is one decision: **navigations are never intercepted.** Not
  * "intercepted and handled carefully" -- the fetch handler returns without calling
@@ -18,7 +18,7 @@
  * attached.
  */
 
-const VERSION = 'dockhand-static-v1'
+const VERSION = 'shipshape-static-v1'
 
 /**
  * Precached on install. Deliberately short and hand-checked against what is actually in

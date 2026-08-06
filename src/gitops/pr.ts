@@ -401,7 +401,7 @@ async function sourceRepos(g: UpdateGroup): Promise<Map<number, string | null>> 
   return out
 }
 
-/** The service's `dockhand.source` label, as recorded by the last scan. */
+/** The service's `shipshape.source` label, as recorded by the last scan. */
 function sourceLabelFor(stack: string, service: string): string | null {
   const row = getDb()
     .prepare(`SELECT source_label FROM images WHERE stack = ? AND service = ?`)

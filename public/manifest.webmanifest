@@ -1,6 +1,6 @@
 {
-  "name": "dockhand",
-  "short_name": "dockhand",
+  "name": "shipshape",
+  "short_name": "shipshape",
   "description": "Image update bot: registry polling, GitHub pull requests, changelog analysis, and deploys.",
   "start_url": "/",
   "scope": "/",

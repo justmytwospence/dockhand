@@ -20,7 +20,7 @@ import { gatherContext } from './context.ts'
  * Turning a proposal into a second commit on the pull request branch.
  *
  * Never a replacement for the tag bump -- an addition to it. The pull request then shows
- * two commits: the mechanical change dockhand can prove correct, and the drafted changes
+ * two commits: the mechanical change shipshape can prove correct, and the drafted changes
  * it cannot. Its badge flips to `proposed`, which permanently disqualifies it from
  * auto-merge. Every path here ends with a human deciding.
  */
@@ -84,7 +84,7 @@ export async function runProposePass(only?: number): Promise<ProposeRunResult> {
 }
 
 /**
- * A pull request is eligible when it is still exactly what dockhand wrote, a verdict
+ * A pull request is eligible when it is still exactly what shipshape wrote, a verdict
  * exists reporting that more than a tag change is needed, and the service has not opted
  * out. `only` is the per-PR button, which bypasses the mode check but nothing else.
  */
@@ -143,7 +143,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
 
   return withGitLock('propose', async () => {
     const repoDir = await ensureWorkRepo()
-    // Work from exactly the commit dockhand pushed. If the branch has moved since, the
+    // Work from exactly the commit shipshape pushed. If the branch has moved since, the
     // human got there first and this proposal is already stale.
     await git(repoDir, ['fetch', httpsUrl(), c.branch], { remote: true })
     const remoteSha = (await git(repoDir, ['rev-parse', 'FETCH_HEAD'])).stdout
@@ -195,7 +195,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
       },
     })
     if ('error' in result) {
-      await comment(c.number, `dockhand could not draft config changes: ${result.error}`)
+      await comment(c.number, `shipshape could not draft config changes: ${result.error}`)
       return false
     }
 
@@ -230,7 +230,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
         record(c, result, verdict.reason, [])
         await comment(
           c.number,
-          `dockhand drafted config changes but refused to apply them: **${verdict.reason}**\n\n` +
+          `shipshape drafted config changes but refused to apply them: **${verdict.reason}**\n\n` +
             renderComment(result, [], null),
         )
         logEvent({
@@ -279,7 +279,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
       record(c, result, applied.reason, [])
       await comment(
         c.number,
-        `dockhand drafted config changes but refused to apply them: **${applied.reason}**\n\n` +
+        `shipshape drafted config changes but refused to apply them: **${applied.reason}**\n\n` +
           renderComment(result, [], null),
       )
       logEvent({
@@ -298,7 +298,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
     if (!gate.ok) {
       for (const [file, text] of originals) writeFileSync(join(repoDir, file), text)
       record(c, result, gate.reason, [])
-      await comment(c.number, `dockhand's drafted changes did not validate: **${gate.reason}**`)
+      await comment(c.number, `shipshape's drafted changes did not validate: **${gate.reason}**`)
       return false
     }
 
@@ -320,7 +320,7 @@ async function draftFor(c: Candidate): Promise<boolean> {
 
     const db = getDb()
     db.transaction(() => {
-      // dockhand still owns the branch -- this commit is its own.
+      // shipshape still owns the branch -- this commit is its own.
       db.prepare(`UPDATE prs SET head_sha_pushed = ?, scope = 'proposed' WHERE id = ?`).run(
         newSha,
         c.prId,

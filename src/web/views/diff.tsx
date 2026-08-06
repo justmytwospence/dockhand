@@ -108,7 +108,7 @@ export const DiffView: FC<{
 
     {prScope === 'modified' && prUrl ? (
       <p class="diff-note warn-text">
-        This branch has been edited since dockhand wrote it &mdash; the preview above is
+        This branch has been edited since shipshape wrote it &mdash; the preview above is
         no longer the whole change.{' '}
         <a class="ext" href={`${prUrl}/files`} target="_blank" rel="noopener">
           See the pull request&rsquo;s own diff &#8599;

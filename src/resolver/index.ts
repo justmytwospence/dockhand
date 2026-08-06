@@ -101,7 +101,7 @@ async function lsioProjectUrls(): Promise<Map<string, string>> {
   try {
     const res = await fetch(
       'https://api.linuxserver.io/api/v1/images?include_config=false&include_deprecated=false',
-      { headers: { 'user-agent': 'dockhand/0.1' } },
+      { headers: { 'user-agent': 'shipshape/0.1' } },
     )
     if (res.ok) {
       const body = (await res.json()) as {
@@ -191,7 +191,7 @@ export async function resolveSource(opts: {
   registry: string
   repository: string
   tag: string
-  /** `dockhand.source` label, which always wins. */
+  /** `shipshape.source` label, which always wins. */
   sourceLabel?: string | null
 }): Promise<Resolution> {
   const { registry, repository, tag, sourceLabel } = opts

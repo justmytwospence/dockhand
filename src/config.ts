@@ -6,7 +6,7 @@ import { z } from 'zod'
 /**
  * Process-level constants come from the environment; everything the operator tunes
  * lives in the tracked policy.yaml inside the repository being watched. Per-service
- * data and exceptions live as `dockhand.*` labels on the services themselves -- read
+ * data and exceptions live as `shipshape.*` labels on the services themselves -- read
  * from the compose files, never from running containers.
  *
  * Nothing here carries a default that assumes a particular deployment. The two values
@@ -27,24 +27,24 @@ export const env = {
   githubToken: process.env.GITHUB_TOKEN ?? '',
   /** `owner/repo` of the repository that holds the compose files. */
   githubRepo: process.env.GITHUB_REPO ?? '',
-  /** Stack directory holding dockhand itself, hard-excluded so it never updates or
+  /** Stack directory holding shipshape itself, hard-excluded so it never updates or
    *  deploys over its own running container. */
-  selfStack: process.env.SELF_STACK ?? 'dockhand',
-  /** Git author for commits dockhand makes, so its work is distinguishable in the log. */
-  botEmail: process.env.BOT_EMAIL ?? 'dockhand@localhost',
+  selfStack: process.env.SELF_STACK ?? 'shipshape',
+  /** Git author for commits shipshape makes, so its work is distinguishable in the log. */
+  botEmail: process.env.BOT_EMAIL ?? 'shipshape@localhost',
 
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
   ntfyUrl: process.env.NTFY_URL ?? '',
-  ntfyTopic: process.env.NTFY_TOPIC ?? 'dockhand',
+  ntfyTopic: process.env.NTFY_TOPIC ?? 'shipshape',
   ntfyToken: process.env.NTFY_TOKEN ?? '',
   /** A full SMTP connection string -- `smtps://user:pass@host:465`. Credentials, so it
    *  lives here rather than in the tracked policy file. */
   smtpUrl: process.env.SMTP_URL ?? '',
   /** Comma-separated recipients. Email is only ever sent when both this and SMTP_URL
-   *  are set; there is no partial state where dockhand tries and fails every time. */
+   *  are set; there is no partial state where shipshape tries and fails every time. */
   mailTo: process.env.MAIL_TO ?? '',
   /** Envelope sender. Defaults to the identity already used for git commits. */
-  mailFrom: process.env.MAIL_FROM ?? process.env.BOT_EMAIL ?? 'dockhand@localhost',
+  mailFrom: process.env.MAIL_FROM ?? process.env.BOT_EMAIL ?? 'shipshape@localhost',
   dockerHubLogin: process.env.DOCKER_HUB_LOGIN ?? '',
   dockerHubPassword: process.env.DOCKER_HUB_PASSWORD ?? '',
 } as const
@@ -58,7 +58,7 @@ function policyPath(): string {
 }
 
 export const paths = {
-  db: join(env.dataDir, 'dockhand.db'),
+  db: join(env.dataDir, 'shipshape.db'),
   /** The tool's own clone. All branch/edit/commit/push work happens here so the
    *  checkout -- which routinely carries uncommitted work -- is never disturbed. */
   workRepo: join(env.dataDir, 'repo'),
@@ -68,7 +68,7 @@ export const paths = {
 
 /** Git author arguments for tool-authored commits. */
 export function botIdentity(): string[] {
-  return ['-c', 'user.name=dockhand', '-c', `user.email=${env.botEmail}`]
+  return ['-c', 'user.name=shipshape', '-c', `user.email=${env.botEmail}`]
 }
 
 export interface MissingSetting {
@@ -77,7 +77,7 @@ export interface MissingSetting {
 }
 
 /**
- * Whether dockhand has enough configuration to do anything at all.
+ * Whether shipshape has enough configuration to do anything at all.
  *
  * A fresh deployment with nothing set serves setup instructions instead of
  * crash-looping: the scheduler, git operations and analysis all stand down, and every
@@ -205,7 +205,7 @@ const PolicySchema = z.object({
       mode: z.enum(['auto', 'manual', 'off']).default('auto'),
     })
     .prefault({}),
-  // Whether a service labelled `dockhand.policy: model` actually gets model-decided
+  // Whether a service labelled `shipshape.policy: model` actually gets model-decided
   // treatment. `shadow` records what would have happened and changes nothing, which is
   // how you find out whether it works before it matters.
   model_tier: z

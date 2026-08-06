@@ -159,7 +159,7 @@ export const SystemPage: FC<{
     {!modelTier || modelTier.length === 0 ? (
       <Panel title="Model-decided updates">
         <p class="nothing mb-0">
-        No decisions recorded. Label a service <code>dockhand.policy: model</code> and the
+        No decisions recorded. Label a service <code>shipshape.policy: model</code> and the
         model&rsquo;s judgement is recorded here on its next update &mdash; without acting
         on it, while the mode is <code>shadow</code>.
         </p>

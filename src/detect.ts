@@ -24,7 +24,7 @@ export type Detection =
   | { status: 'up-to-date'; via: Source; observed: TagInfo[]; constrainedFrom?: string }
   /** Rolling or digest-pinned: compare digests, not tag strings. */
   | { status: 'digest-watch'; currentDigest: string | null }
-  /** No `dockhand.pattern` label and none could be inferred -- needs a human. */
+  /** No `shipshape.pattern` label and none could be inferred -- needs a human. */
   | { status: 'no-pattern'; detail: string }
   /** The pinned tag does not match its declared pattern. */
   | { status: 'unparseable'; detail: string }
@@ -55,7 +55,7 @@ export async function detect(svc: ScannedService): Promise<Detection> {
       status: 'no-pattern',
       detail:
         `cannot infer a pattern from tag "${ref.tag}" -- ` +
-        `add a dockhand.pattern label (use "regex" with dockhand.tag.include for odd shapes)`,
+        `add a shipshape.pattern label (use "regex" with shipshape.tag.include for odd shapes)`,
     }
   }
 
@@ -105,7 +105,7 @@ export async function detect(svc: ScannedService): Promise<Detection> {
             status: 'unresolvable',
             detail:
               `${err.message}, and no source repo is known to probe releases from -- ` +
-              `add a dockhand.source label`,
+              `add a shipshape.source label`,
           }
         }
         const probe = await probeByReleases({

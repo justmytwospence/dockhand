@@ -30,7 +30,7 @@ test('an empty batch renders nothing at all', () => {
 
 test('one item names itself in the title rather than counting to one', () => {
   const m = render([row({ summary: 'radarr 5.28.0 -> 5.29.0 (#16)' })])!
-  assert.equal(m.title, 'dockhand: radarr 5.28.0 -> 5.29.0 (#16)')
+  assert.equal(m.title, 'shipshape: radarr 5.28.0 -> 5.29.0 (#16)')
 })
 
 test('several items are counted in the title and listed under headings', () => {
@@ -39,7 +39,7 @@ test('several items are counted in the title and listed under headings', () => {
     row({ category: 'opened', stack: 'grafana', summary: 'b (#2)' }),
     row({ category: 'merged', stack: 'glances', summary: 'c (#3)' }),
   ])!
-  assert.equal(m.title, 'dockhand: 3 updates')
+  assert.equal(m.title, 'shipshape: 3 updates')
   assert.match(m.body, /^2 pull requests opened$/m)
   assert.match(m.body, /^ {2}servarr\/radarr: a \(#1\)$/m)
   assert.match(m.body, /^ {2}grafana: b \(#2\)$/m)
@@ -73,7 +73,7 @@ test('a heading agrees with itself on plurals', () => {
 
 test('a long batch is truncated rather than becoming a log', () => {
   const m = render(Array.from({ length: 30 }, (_, i) => row({ summary: `item ${i}` })))!
-  assert.equal(m.title, 'dockhand: 30 updates')
+  assert.equal(m.title, 'shipshape: 30 updates')
   assert.match(m.body, /^ {2}\.\.\.and 18 more$/m)
   // The heading still reports the true count, not the truncated one.
   assert.match(m.body, /^30 pull requests opened$/m)

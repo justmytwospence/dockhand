@@ -20,8 +20,8 @@ function gh(): Octokit {
   return octokit
 }
 
-const START = '<!-- dockhand:verdict:start -->'
-const END = '<!-- dockhand:verdict:end -->'
+const START = '<!-- shipshape:verdict:start -->'
+const END = '<!-- shipshape:verdict:end -->'
 
 export interface AnalysisRun {
   analysed: number
@@ -235,7 +235,7 @@ async function applyToPrs(
 
   // Routine, not an alert: a block means an update is *not* being applied, so nothing is
   // broken and nothing is waiting on a fast reaction. It belongs in the summary of what
-  // dockhand decided, alongside what it opened and merged.
+  // shipshape decided, alongside what it opened and merged.
   if (v.recommendation === 'block' && prs.length > 0) {
     await routine({
       category: 'held',

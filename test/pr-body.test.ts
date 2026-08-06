@@ -118,7 +118,7 @@ test('an unresolved upstream is stated, not silently omitted', () => {
   // much weight the verdict deserves -- so the reviewer needs to know.
   const md = bodyOf(group([{ service: 'odd', image: 'example.internal/team/app:1.0.0' }]))
   assert.match(md, /No upstream repository resolved/)
-  assert.match(md, /dockhand\.source/)
+  assert.match(md, /shipshape\.source/)
   // ...and nothing was invented to fill the gap.
   assert.equal(links(md).filter((l) => l.url.includes('example.internal')).length, 0)
 })
@@ -189,7 +189,7 @@ test('a digest ref never leaks a sha into a link, and the table stays readable',
   const visible = md.replace(/<!--[\s\S]*?-->/g, '')
   assert.ok(!visible.includes(long))
   assert.match(visible, /`9@546304417fea`/)
-  assert.match(md, /<!-- dockhand: .*to=9@sha256:111111417fea/)
+  assert.match(md, /<!-- shipshape: .*to=9@sha256:111111417fea/)
 })
 
 test('the verdict markers and the metadata comment survive the new section', () => {
@@ -198,9 +198,9 @@ test('the verdict markers and the metadata comment survive the new section', () 
   const md = bodyOf(group([{ service: 'miniflux', image: 'miniflux/miniflux:2.3.3' }]), {
     1: 'miniflux/v2',
   })
-  assert.ok(md.indexOf('### Reference') < md.indexOf('<!-- dockhand:verdict:start -->'))
-  assert.ok(md.includes('<!-- dockhand:verdict:end -->'))
-  assert.match(md, /<!-- dockhand: stack=demo services=miniflux from=/)
+  assert.ok(md.indexOf('### Reference') < md.indexOf('<!-- shipshape:verdict:start -->'))
+  assert.ok(md.includes('<!-- shipshape:verdict:end -->'))
+  assert.match(md, /<!-- shipshape: stack=demo services=miniflux from=/)
 })
 
 test('the analysis placeholder says which of the two reasons it is empty', () => {

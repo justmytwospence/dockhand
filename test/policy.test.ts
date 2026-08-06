@@ -33,8 +33,8 @@ test('tierFor: label precedence, first match wins', () => {
 })
 
 test('tierFor: on-request is reachable from either label', () => {
-  // The original spelling lives on dockhand.pr; the ladder now also accepts it on
-  // dockhand.policy, so one label can express every rung.
+  // The original spelling lives on shipshape.pr; the ladder now also accepts it on
+  // shipshape.policy, so one label can express every rung.
   assert.equal(t('patch', null, 'on-request'), 'held')
   assert.equal(t('patch', 'on-request', null), 'held')
 })
@@ -183,7 +183,7 @@ test('shouldOpenPr: coexist covers exactly what another updater leaves alone', (
   // The other updater owns auto-tier patches and minors during coexistence
   assert.equal(s({}), false)
   assert.equal(s({ magnitude: 'minor' }), false)
-  // dockhand owns everything such a tool would skip
+  // shipshape owns everything such a tool would skip
   assert.equal(s({ magnitude: 'major' }), true)
   assert.equal(s({ magnitude: 'digest' }), true)
   assert.equal(s({ tier: 'manual' }), true)

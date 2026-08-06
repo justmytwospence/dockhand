@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 // getDb() resolves its path from config at import time, so point DATA_DIR at a scratch
 // directory before anything is imported.
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'dockhand-test-'))
+process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'shipshape-test-'))
 
 const { getDb } = await import('../src/db.ts')
 const { tierFor } = await import('../src/policy.ts')
@@ -191,7 +191,7 @@ test('digest baselines bootstrap once and then only advance on movement', () => 
 test('a label change retiers an outstanding update on the next scan', () => {
   // The whole point of keeping labels in the compose files is that editing one takes
   // effect without recreating anything. If the tier were frozen at insert time, adding
-  // `dockhand.pr: on-request` to a service with an update already outstanding would
+  // `shipshape.pr: on-request` to a service with an update already outstanding would
   // silently do nothing until that update happened to be superseded.
   insert('16', '18', 'major', 'manual', 'detected')
   const before = live()[0]!

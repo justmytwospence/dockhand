@@ -56,7 +56,7 @@ export async function fetchReleases(
     {
       headers: {
         accept: 'application/vnd.github+json',
-        'user-agent': 'dockhand/0.1',
+        'user-agent': 'shipshape/0.1',
         ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
       },
     },

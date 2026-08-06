@@ -65,7 +65,7 @@ export async function pollPrs(): Promise<PollResult> {
 
     // A head that no longer matches what we pushed means a human edited the branch.
     // From then on it is theirs: never force-pushed, never regenerated. Restoring it
-    // to dockhand's own commit hands ownership back, since there is nothing of theirs
+    // to shipshape's own commit hands ownership back, since there is nothing of theirs
     // left on it.
     const owned = data.head.sha !== pr.head_sha_pushed
     getDb().prepare(`UPDATE prs SET user_owned = ? WHERE id = ?`).run(owned ? 1 : 0, pr.id)
@@ -91,9 +91,9 @@ export async function pollPrs(): Promise<PollResult> {
 }
 
 /**
- * Does this pull request still contain only the image-tag change dockhand wrote?
+ * Does this pull request still contain only the image-tag change shipshape wrote?
  *
- * Called when a branch's head has moved past what dockhand pushed. Some updates
+ * Called when a branch's head has moved past what shipshape pushed. Some updates
  * genuinely require more than a tag bump -- an upstream that renames its image, say --
  * and a branch carrying that work must be visibly different from a clean bump, because
  * nothing has reviewed the extra changes.
@@ -122,19 +122,19 @@ async function classifyScope(
   number: number,
   was: string,
   headSha: string,
-  dockhandOwns: boolean,
+  shipshapeOwns: boolean,
 ): Promise<void> {
   const [owner, repo] = env.githubRepo.split('/') as [string, string]
   let scope: 'tag-only' | 'modified' | 'proposed'
   try {
     const res = await gh().rest.pulls.listFiles({ owner, repo, pull_number: number, per_page: 100 })
     scope = classifyPatch(res.data, res.data.length >= 100)
-    // dockhand's own drafted config changes are not a human edit. The patch test cannot
+    // shipshape's own drafted config changes are not a human edit. The patch test cannot
     // tell them apart -- both are "more than an image line" -- so ownership decides:
-    // the head is still exactly what dockhand pushed, and a proposal was recorded
+    // the head is still exactly what shipshape pushed, and a proposal was recorded
     // against it. Without this the next poll relabels every proposal as `modified` and
     // the distinction disappears within one cycle.
-    if (dockhandOwns && scope === 'modified' && hasProposal(prId)) scope = 'proposed'
+    if (shipshapeOwns && scope === 'modified' && hasProposal(prId)) scope = 'proposed'
   } catch {
     // Unknown is not the same as clean; leave whatever was there rather than guessing,
     // and do not record the sha, so the next poll retries.
@@ -150,13 +150,13 @@ async function classifyScope(
       scope === 'modified'
         ? `#${number} now contains changes beyond the image tag`
         : scope === 'proposed'
-          ? `#${number} carries dockhand's drafted config changes`
+          ? `#${number} carries shipshape's drafted config changes`
           : `#${number} is back to an image-tag change only`,
     detail: scope === 'tag-only' ? undefined : 'it will always need a human to merge',
   })
 }
 
-/** Did dockhand successfully draft config changes onto this pull request? */
+/** Did shipshape successfully draft config changes onto this pull request? */
 function hasProposal(prId: number): boolean {
   return !!getDb()
     .prepare(`SELECT 1 FROM proposals WHERE pr_id = ? AND error IS NULL LIMIT 1`)
@@ -196,7 +196,7 @@ async function onMerged(prId: number, number: number): Promise<void> {
       detail: sync.reason,
     })
     await notify({
-      title: `dockhand: #${number} merged, sync blocked`,
+      title: `shipshape: #${number} merged, sync blocked`,
       body: `${sync.reason}\n\nOnce resolved, deploy with:\n${command}`,
       priority: 4,
       tags: ['warning'],
@@ -248,7 +248,7 @@ async function onMerged(prId: number, number: number): Promise<void> {
   // that went wrong ever waits for a digest.
 }
 
-/** The service's `dockhand.deploy` label, as recorded by the last scan. */
+/** The service's `shipshape.deploy` label, as recorded by the last scan. */
 function deployLabelFor(stack: string, service: string): string | null {
   const row = getDb()
     .prepare(`SELECT deploy_label FROM images WHERE stack = ? AND service = ?`)
@@ -274,7 +274,7 @@ function onClosed(prId: number, number: number): void {
   })
 }
 
-/** True while any dockhand PR is open, which is what decides the poll cadence. */
+/** True while any shipshape PR is open, which is what decides the poll cadence. */
 export function hasOpenPrs(): boolean {
   return (
     (getDb().prepare(`SELECT COUNT(*) c FROM prs WHERE state = 'open'`).get() as { c: number }).c > 0

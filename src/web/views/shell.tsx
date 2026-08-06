@@ -57,7 +57,7 @@ export const Sidebar: FC<{ path: string }> = ({ path }) => (
   <aside class="navbar navbar-vertical navbar-expand-lg d-none d-lg-flex">
     <div class="container-fluid">
       <h1 class="navbar-brand">
-        <a href="/">dockhand</a>
+        <a href="/">shipshape</a>
       </h1>
       <div class="navbar-collapse">
         <ul class="navbar-nav pt-lg-2">
@@ -92,7 +92,7 @@ export const MobileBar: FC<{ title: string }> = ({ title }) => (
   <header class="navbar navbar-expand-md d-lg-none sticky-top">
     <div class="container-xl">
       <a class="navbar-brand navbar-brand-autodark me-0" href="/">
-        dockhand
+        shipshape
       </a>
       <span class="sub ms-2 text-truncate">{title}</span>
     </div>
@@ -183,7 +183,7 @@ export const ThemeToggle: FC = () => (
         data-theme={value}
         title={label}
         aria-label={label}
-        onclick={`window.dockhandSetTheme('${value}')`}
+        onclick={`window.shipshapeSetTheme('${value}')`}
       >
         <Ico />
       </button>

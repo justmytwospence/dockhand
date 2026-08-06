@@ -5,7 +5,7 @@ import { paths } from './config.ts'
 
 /**
  * Runtime state only. Policy is tracked YAML in the watched repository; per-service config is
- * `dockhand.*` labels in the compose files. Everything here except verdict/cost history
+ * `shipshape.*` labels in the compose files. Everything here except verdict/cost history
  * is reconstructible from the registries, git, and those two sources.
  */
 
@@ -41,7 +41,7 @@ const MIGRATIONS: { id: string; sql: string }[] = [
       pattern         TEXT,            -- semver | v-semver | ... | regex
       tag_include     TEXT,
       policy_label    TEXT,            -- auto | gated | manual | skip (label override)
-      source_label    TEXT,            -- dockhand.source override
+      source_label    TEXT,            -- shipshape.source override
       claude_label    TEXT,            -- 'required' => fail-closed for this service
       deploy_label    TEXT,            -- 'rm-first'
       unwatchable     TEXT,            -- reason: build | interpolated | disabled
@@ -215,10 +215,10 @@ const MIGRATIONS: { id: string; sql: string }[] = [
   {
     id: '004-pr-scope',
     sql: `
-    -- Whether a pull request still contains only the image-tag change dockhand wrote.
+    -- Whether a pull request still contains only the image-tag change shipshape wrote.
     -- 'tag-only' | 'modified'.
     --
-    -- Every dockhand-authored PR starts tag-only by construction (the editor refuses to
+    -- Every shipshape-authored PR starts tag-only by construction (the editor refuses to
     -- commit anything else), so the default backfills existing rows correctly. It flips
     -- to 'modified' when a human pushes to the branch -- which some updates genuinely
     -- require, e.g. an upstream that renames its image.
@@ -234,8 +234,8 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     sql: `
     -- The branch head that the scope column describes. Classification runs whenever the
     -- head moves away from this, in EITHER direction: keying it off "differs from what
-    -- dockhand pushed" instead would strand a branch as 'modified' forever once someone
-    -- restored it to dockhand's own commit, because that comparison stops being true.
+    -- shipshape pushed" instead would strand a branch as 'modified' forever once someone
+    -- restored it to shipshape's own commit, because that comparison stops being true.
     ALTER TABLE prs ADD COLUMN scope_sha TEXT;
   `,
   },
@@ -249,7 +249,7 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     -- no trace would be indistinguishable from "nothing to do".
     --
     -- prs.scope gains a third value alongside 'tag-only' and 'modified': 'proposed',
-    -- meaning dockhand added changes of its own. Like 'modified', it must never
+    -- meaning shipshape added changes of its own. Like 'modified', it must never
     -- auto-merge -- the whole point is that nothing has verified those changes.
     CREATE TABLE proposals (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,

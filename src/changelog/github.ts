@@ -33,7 +33,7 @@ async function ghJson<T>(path: string): Promise<T | null> {
     const res = await fetch(`https://api.github.com${path}`, {
       headers: {
         accept: 'application/vnd.github+json',
-        'user-agent': 'dockhand/0.1',
+        'user-agent': 'shipshape/0.1',
         ...(env.githubToken ? { authorization: `Bearer ${env.githubToken}` } : {}),
       },
       signal: AbortSignal.timeout(20_000),
@@ -95,7 +95,7 @@ export async function fetchContainerChangelog(
   try {
     const res = await fetch(
       'https://api.linuxserver.io/api/v1/images?include_config=false&include_deprecated=false',
-      { headers: { 'user-agent': 'dockhand/0.1' }, signal: AbortSignal.timeout(20_000) },
+      { headers: { 'user-agent': 'shipshape/0.1' }, signal: AbortSignal.timeout(20_000) },
     )
     if (!res.ok) return []
     const body = (await res.json()) as {

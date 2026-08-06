@@ -33,7 +33,7 @@ export type Confidence = 'low' | 'medium' | 'high'
  * (see `asTier`) rather than a value this module ever produces.
  *
  * `held` is not a policy the operator writes directly either -- it is what
- * `dockhand.pr: on-request` (or the newer `dockhand.policy: on-request`) produces. Held
+ * `shipshape.pr: on-request` (or the newer `shipshape.policy: on-request`) produces. Held
  * updates are detected, persisted and rendered, but the PR engine never touches them;
  * only an explicit per-service action in the UI promotes one. Datastores live here: a
  * postgres major cannot be applied by bumping the tag at all (the new container refuses
@@ -41,19 +41,19 @@ export type Confidence = 'low' | 'medium' | 'high'
  */
 export type EffectiveTier = 'auto' | 'manual' | 'held' | 'skip' | 'model'
 
-/** What an operator may write in `dockhand.policy` or in `defaults.*`. */
+/** What an operator may write in `shipshape.policy` or in `defaults.*`. */
 export const TIER_LABELS = ['auto', 'manual', 'on-request', 'skip', 'model'] as const
 
 export interface TierInput {
   magnitude: Magnitude
-  /** `dockhand.policy`: auto | manual | on-request | skip | model (| gated, deprecated) */
+  /** `shipshape.policy`: auto | manual | on-request | skip | model (| gated, deprecated) */
   policyLabel: string | null
-  /** `dockhand.pr`: on-request */
+  /** `shipshape.pr`: on-request */
   prLabel: string | null
   defaults: Policy['defaults']
 }
 
-/** Every spelling `dockhand.policy` accepts, including the deprecated one. */
+/** Every spelling `shipshape.policy` accepts, including the deprecated one. */
 const KNOWN_LABELS = new Set(['auto', 'manual', 'gated', 'on-request', 'skip', 'model'])
 
 function clean(v: string | null): string | null {
@@ -67,8 +67,8 @@ export function tierFor(i: TierInput): EffectiveTier {
   const pr = clean(i.prLabel)
 
   if (label === 'skip') return 'skip'
-  // Both spellings reach the same rung. `dockhand.pr` came first and is kept working;
-  // `dockhand.policy: on-request` is the one to write, because the whole ladder then
+  // Both spellings reach the same rung. `shipshape.pr` came first and is kept working;
+  // `shipshape.policy: on-request` is the one to write, because the whole ladder then
   // lives in one label rather than being split across two that have to be read together.
   if (pr === 'on-request' || label === 'on-request') return 'held'
   if (label === 'manual' || label === 'gated') return 'manual'
@@ -78,7 +78,7 @@ export function tierFor(i: TierInput): EffectiveTier {
   if (label === 'model') return 'model'
   // A label nobody recognises narrows to a human, and never falls through to the
   // defaults. Falling through is what it used to do, and it is the wrong direction: a
-  // service the operator meant to pin -- `dockhand.policy: manaul` -- would land on
+  // service the operator meant to pin -- `shipshape.policy: manaul` -- would land on
   // whatever `defaults.patch` says, which is `auto`. A typo must never grant reach.
   if (label !== null && !KNOWN_LABELS.has(label)) return 'manual'
   // `auto` deliberately has no branch of its own: it means "no exception here, follow
@@ -146,7 +146,7 @@ export interface AutoMergeInput {
   prScope?: 'tag-only' | 'proposed' | 'modified'
   verdict: Verdict
   confidence: Confidence | null
-  /** `dockhand.claude: required` -- flips this service to fail-closed. */
+  /** `shipshape.claude: required` -- flips this service to fail-closed. */
   claudeRequired: boolean
   claudeMode: Policy['claude']['mode']
   minConfidence: Confidence
@@ -162,7 +162,7 @@ export type AutoMergeDecision =
  * Note the deliberate asymmetry on `unavailable`: by default an absent verdict falls
  * back to the static policy (fail-open), because the static policy is exactly what runs
  * today without any analysis at all -- a provider outage must not freeze every update.
- * Services that would rather stall than proceed unread carry `dockhand.claude: required`.
+ * Services that would rather stall than proceed unread carry `shipshape.claude: required`.
  */
 export function canAutoMerge(i: AutoMergeInput): AutoMergeDecision {
   if (i.tier !== 'auto') return { merge: false, reason: `tier is ${i.tier}` }
@@ -211,10 +211,10 @@ export function canAutoMerge(i: AutoMergeInput): AutoMergeDecision {
  * Whether the PR engine should open a PR for this update at all.
  *
  * `coexist` is for running alongside another updater that already applies routine
- * patches and minors itself: dockhand takes only what such a tool leaves alone --
+ * patches and minors itself: shipshape takes only what such a tool leaves alone --
  * majors, digest pins, and anything not on the auto tier -- so the two can never write
  * to the same file for the same reason. Not by timing, by construction. `full` takes
- * over everything and is the right setting once dockhand is the only updater.
+ * over everything and is the right setting once shipshape is the only updater.
  */
 export function shouldOpenPr(opts: {
   scope: 'coexist' | 'full'
