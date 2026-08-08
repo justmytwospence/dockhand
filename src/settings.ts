@@ -90,6 +90,16 @@ export interface SettingDef {
  * sections holding the same setting twice. Naming the sequence here means the page reads
  * as the path an update takes -- found, judged, proposed, merged, deployed -- and a new
  * setting has one obvious home.
+ *
+ * That claim was false in two places until the Settings page started rendering this order
+ * as an explanation, at which point it stopped being cosmetic. `scheduler.ts` runs
+ * runPrPass -> runAnalysisPass -> runProposePass -> runAutoMerge, so: the pull request
+ * exists before the model writes a verdict INTO it, and a proposal is drafted before the
+ * merge it then forces to wait. Changelog review used to sit above Pull requests and
+ * Merging above Config proposals, which made the hand-off between sections unwritable.
+ *
+ * Reordering is free: pane ids are slugs of these NAMES, so no anchor or bookmark moves,
+ * and applySettings iterates SETTINGS rather than this, so policy.yaml is untouched.
  */
 export const SECTIONS = [
   ['Scanning', 'When shipshape asks the registries what exists.'],
@@ -97,16 +107,16 @@ export const SECTIONS = [
     'Update policy',
     'How much happens without you, by how large the version jump is. A per-service `shipshape.policy` label overrides it. Majors are never on the auto rung.',
   ],
+  ['Pull requests', 'Every change goes through one. It is the review surface.'],
   [
     'Changelog review',
     'A model finds and reads the release notes, then judges the update. Its verdict can only ever withhold a merge — never cause one.',
   ],
-  ['Pull requests', 'Every change goes through one. It is the review surface.'],
-  ['Merging', 'The only place shipshape changes the repository with nobody watching.'],
   [
     'Config proposals',
     'When an update needs more than its tag, a model can write the rest. A pull request carrying drafted changes can never merge automatically.',
   ],
+  ['Merging', 'The only place shipshape changes the repository with nobody watching.'],
   ['Deploys', 'A change is done when it is running, not when it is merged.'],
   [
     'Notifications',
@@ -198,6 +208,58 @@ export const SETTINGS: SettingDef[] = [
     help: 'same tag, rebuilt',
     about:
       'A pinned sha256 moved. There is no changelog to read for one.',
+  },
+
+  // ------------------------------------------------------------- Pull requests
+  {
+    section: 'Pull requests',
+    path: 'prs.enabled',
+    kind: 'bool',
+    defaultValue: 'true',
+    label: 'Open pull requests',
+    help: '',
+    about:
+      'Off keeps detection running but stops all pushing and PR creation.',
+  },
+  {
+    section: 'Pull requests',
+    path: 'prs.scope',
+    kind: 'enum',
+    options: ['coexist', 'full'],
+    optionHelp: {
+      coexist: 'take only what another updater leaves alone — majors, digest pins, and anything off the auto rung',
+      full: 'shipshape is the only updater; it handles everything',
+    },
+    defaultValue: 'coexist',
+    label: 'Coverage',
+    help: '',
+    about:
+      'Coexist exists so two updaters can never write to the same file for the same reason.',
+  },
+  {
+    section: 'Pull requests',
+    path: 'prs.max_open',
+    kind: 'int',
+    min: 1,
+    optional: true,
+    defaultValue: '',
+    defaultLabel: 'unlimited',
+    label: 'Max open at once',
+    help: 'blank for no limit',
+    about:
+      'Blank opens everything eligible at once. A number holds the rest back until an open one merges or closes -- which keeps the list short, at the cost of a full queue being silent: five stale pull requests once held fifteen updates shut for six days.',
+  },
+  {
+    section: 'Pull requests',
+    path: 'merge_method',
+    kind: 'enum',
+    options: ['squash', 'merge', 'rebase'],
+    defaultValue: 'squash',
+    label: 'Merge method',
+    help: '',
+    about:
+      'Must be one the GitHub repository actually allows, or merging fails with a 405.',
+    advanced: true,
   },
 
   // -------------------------------------------------------- Reading the changelog
@@ -296,56 +358,32 @@ export const SETTINGS: SettingDef[] = [
     advanced: true,
   },
 
-  // ------------------------------------------------------------- Pull requests
+  // ------------------------------------------------------- Drafting config changes
   {
-    section: 'Pull requests',
-    path: 'prs.enabled',
-    kind: 'bool',
-    defaultValue: 'true',
-    label: 'Open pull requests',
-    help: '',
-    about:
-      'Off keeps detection running but stops all pushing and PR creation.',
-  },
-  {
-    section: 'Pull requests',
-    path: 'prs.scope',
+    section: 'Config proposals',
+    path: 'propose.mode',
     kind: 'enum',
-    options: ['coexist', 'full'],
+    options: ['auto', 'manual', 'off'],
     optionHelp: {
-      coexist: 'take only what another updater leaves alone — majors, digest pins, and anything off the auto rung',
-      full: 'shipshape is the only updater; it handles everything',
+      auto: 'draft whenever a verdict reports breakage or manual steps',
+      manual: 'only when you press the button on a pull request',
+      off: 'never draft anything',
     },
-    defaultValue: 'coexist',
-    label: 'Coverage',
+    defaultValue: 'auto',
+    label: 'Draft config changes',
     help: '',
     about:
-      'Coexist exists so two updaters can never write to the same file for the same reason.',
+      'A drafted pull request always needs a human, whatever else is set.',
   },
   {
-    section: 'Pull requests',
-    path: 'prs.max_open',
-    kind: 'int',
-    min: 1,
-    optional: true,
-    defaultValue: '',
-    defaultLabel: 'unlimited',
-    label: 'Max open at once',
-    help: 'blank for no limit',
+    section: 'Config proposals',
+    path: 'claude.code_model',
+    kind: 'model',
+    defaultValue: 'claude-opus-5',
+    label: 'Model',
+    help: 'rare, high-stakes',
     about:
-      'Blank opens everything eligible at once. A number holds the rest back until an open one merges or closes -- which keeps the list short, at the cost of a full queue being silent: five stale pull requests once held fifteen updates shut for six days.',
-  },
-  {
-    section: 'Pull requests',
-    path: 'merge_method',
-    kind: 'enum',
-    options: ['squash', 'merge', 'rebase'],
-    defaultValue: 'squash',
-    label: 'Merge method',
-    help: '',
-    about:
-      'Must be one the GitHub repository actually allows, or merging fails with a 405.',
-    advanced: true,
+      'Worth a stronger model than the changelog verdicts use.',
   },
 
   // ------------------------------------------------------------------ Merging
@@ -385,34 +423,6 @@ export const SETTINGS: SettingDef[] = [
     help: 'shipshape.policy: model',
     about:
       'The one place a model can raise a rung rather than only lower it. The track record is on the System page.',
-  },
-
-  // ------------------------------------------------------- Drafting config changes
-  {
-    section: 'Config proposals',
-    path: 'propose.mode',
-    kind: 'enum',
-    options: ['auto', 'manual', 'off'],
-    optionHelp: {
-      auto: 'draft whenever a verdict reports breakage or manual steps',
-      manual: 'only when you press the button on a pull request',
-      off: 'never draft anything',
-    },
-    defaultValue: 'auto',
-    label: 'Draft config changes',
-    help: '',
-    about:
-      'A drafted pull request always needs a human, whatever else is set.',
-  },
-  {
-    section: 'Config proposals',
-    path: 'claude.code_model',
-    kind: 'model',
-    defaultValue: 'claude-opus-5',
-    label: 'Model',
-    help: 'rare, high-stakes',
-    about:
-      'Worth a stronger model than the changelog verdicts use.',
   },
 
   // ---------------------------------------------------------------- Deploying

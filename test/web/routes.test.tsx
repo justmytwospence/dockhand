@@ -30,8 +30,16 @@ before(async () => {
 
 after(() => rmSync(dir, { recursive: true, force: true }))
 
-const PAGES = ['/', '/images', '/images?group=stack', '/activity', '/settings', '/settings/raw', '/system', '/about']
+const PAGES = ['/', '/images', '/images?group=stack', '/activity', '/settings', '/settings/raw', '/system']
 const FRAGMENTS = ['/fragments/pending', '/scan/status', '/settings/digest']
+
+test('/about is gone, not moved', async () => {
+  // It was absorbed into /settings behind the Explain switch. Deliberately a 404 rather
+  // than a redirect: a redirect would keep a second name for a page alive indefinitely,
+  // and there is nothing at the other end to land on -- the prose is spread across nine
+  // panes, so no single anchor is the honest destination.
+  assert.equal((await app.request('/about')).status, 404)
+})
 
 test('every page returns a whole document', async () => {
   for (const path of PAGES) {

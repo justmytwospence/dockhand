@@ -26,7 +26,6 @@ import { ImagesPage, ImagesTable, ImageRow, type StatusRow } from './views/image
 import { COLUMNS, RowNote } from './views/layout.tsx'
 import { ActivityPage, ActivityTable, KINDS } from './views/activity.tsx'
 import { SettingsPage, SettingsForm, RawPolicy, DigestPreview, PromptEditorFragment } from './views/settings.tsx'
-import { AboutPage } from './views/about.tsx'
 import { applySettings, SETTINGS } from '../settings.ts'
 import { listModels } from '../analyze/models.ts'
 import { flush as flushDigest, pending as pendingDigest, render as renderDigest } from '../notify/digest.ts'
@@ -312,6 +311,7 @@ export function createApp(): Hono {
         policy,
         models: await listModels(),
         prompts: promptStates(),
+        repo: env.githubRepo,
       }) as string,
     )
   })
@@ -406,11 +406,6 @@ export function createApp(): Hono {
     )
   })
 
-  /** The mental model. Reads the live policy so it describes this deployment. */
-  app.get('/about', (c) => {
-    const { policy } = loadPolicy()
-    return c.html(AboutPage({ missing: missing(), policy, repo: env.githubRepo }) as string)
-  })
 
   app.get('/settings/raw', (c) => {
     try {

@@ -16,8 +16,15 @@ export interface MissingSetting {
  *
  * Deliberately tiny and inline. A deferred external script would run after first paint,
  * which is exactly the flash this avoids.
+ *
+ * The explanations toggle rides along for the same reason, and because the alternative is
+ * worse: rendering the prose conditionally on the server would mean threading the
+ * preference through `POST /settings`, which re-renders the whole form as an htmx swap,
+ * and through every future fragment that can land inside a pane. An attribute on `<html>`
+ * is touched by no swap, so the state survives for free. Note it is set HERE and never
+ * server-rendered -- two tests anchor the exact shape of the opening `<html>` tag.
  */
-export const THEME_SCRIPT = `(function(){
+export const PREFS_SCRIPT = `(function(){
   var q = matchMedia('(prefers-color-scheme: dark)');
   function pick(){
     var s = localStorage.getItem('shipshape-theme') || 'auto';
@@ -32,6 +39,17 @@ export const THEME_SCRIPT = `(function(){
   apply();
   q.addEventListener('change', apply);
   window.shipshapeSetTheme = function(v){ localStorage.setItem('shipshape-theme', v); apply(); };
+
+  function applyExplain(){
+    var on = localStorage.getItem('shipshape-explain') === '1';
+    document.documentElement.setAttribute('data-explain', on ? 'on' : 'off');
+    document.querySelectorAll('.explain-toggle input').forEach(function(i){ i.checked = on; });
+  }
+  applyExplain();
+  addEventListener('DOMContentLoaded', applyExplain);
+  window.shipshapeSetExplain = function(on){
+    localStorage.setItem('shipshape-explain', on ? '1' : '0'); applyExplain();
+  };
 })()`
 
 /**
@@ -106,7 +124,7 @@ export const Layout: FC<
       {/* First, and NOT deferred. Bootstrap 5.3 has no data-bs-theme="auto" -- auto has
           to be resolved to light or dark before the stylesheets paint, or the page
           flashes the wrong theme on every navigation. */}
-      <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      <script dangerouslySetInnerHTML={{ __html: PREFS_SCRIPT }} />
       <link rel="stylesheet" href="/static/tabler.min.css" />
       {/* After Tabler: source order settles every same-specificity tie in our favour,
           which is what lets the bespoke CSS below stay unedited. */}

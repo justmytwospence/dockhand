@@ -114,8 +114,9 @@ worst a hostile changelog can achieve is to stop an update.
 behaved identically to `manual` in every decision — same merge answer, same PR answer —
 so it was a choice with no consequence rather than a control.
 
-The whole model is also rendered at `/about` in the running app, against the live
-config.
+The whole model is also rendered in the running app: turn on the **Explain** switch on
+the Settings page and each section carries the prose for that stage, so reading the nav
+top to bottom is the path an update takes.
 
 ## Running it yourself
 

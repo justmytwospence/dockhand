@@ -5,7 +5,6 @@ import { ImagesPage, ImagesTable, ImageRow } from '../../src/web/views/images.ts
 import { ActivityPage, ActivityTable } from '../../src/web/views/activity.tsx'
 import { SettingsPage, SettingsForm, PromptEditorFragment, DigestPreview, RawPolicy } from '../../src/web/views/settings.tsx'
 import { SystemPage } from '../../src/web/views/system.tsx'
-import { AboutPage } from '../../src/web/views/about.tsx'
 import { DiffView, DetailPanel } from '../../src/web/views/diff.tsx'
 import type { ScannedService } from '../../src/compose/scan.ts'
 
@@ -116,7 +115,9 @@ export function renderAll(opts: { running?: boolean } = {}): Record<string, stri
       }),
     ),
     'activity-table': String(ActivityTable({ rows: [], repo: 'o/r' })),
-    settings: String(SettingsPage({ policy: POLICY, models: ['claude-x'], prompts: PROMPTS })),
+    settings: String(
+      SettingsPage({ policy: POLICY, models: ['claude-x'], prompts: PROMPTS, repo: 'o/r' }),
+    ),
     'settings-form': String(SettingsForm({ policy: POLICY, models: [] })),
     'prompt-fragment': String(PromptEditorFragment({ state: PROMPTS[0]! })),
     'digest-preview': String(
@@ -148,7 +149,6 @@ export function renderAll(opts: { running?: boolean } = {}): Record<string, stri
         modelTier: [],
       }),
     ),
-    about: String(AboutPage({ policy: POLICY, repo: 'o/r' })),
     diff: String(
       DiffView({
         result: {

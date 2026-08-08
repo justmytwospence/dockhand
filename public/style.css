@@ -815,7 +815,38 @@ button[disabled] {
   resize: vertical;
 }
 
-/* ------------------------------------------------------------------ about */
+/* ----------------------------------------------------------- explanations */
+
+/* Prose is always in the DOM and hidden here rather than rendered conditionally on the
+   server. Two reasons: a Save is an htmx swap of #settings-form, so a server-side
+   conditional would have to round-trip the preference through every fragment that can
+   land in a pane; and an attribute on <html> is set before first paint, so nothing
+   flashes. display:none also takes it out of the a11y tree and find-in-page, so off
+   means off. */
+.explain {
+  display: none;
+}
+
+[data-explain='on'] .explain {
+  display: block;
+  max-width: 62ch;
+}
+
+/* The preamble sits above the two-column shell, at full measure. */
+.explain-intro {
+  margin-bottom: 1.25rem;
+}
+
+/* With the prose visible, the section blurb is its first sentence -- so the dot that
+   also carries it would be saying the same thing twice, inches apart. */
+[data-explain='on'] .pane-head .help-dot {
+  display: none;
+}
+
+.explain-toggle {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
 
 /* The one claim everything else hangs off. Loud enough to read before the prose,
    quiet enough not to look like an error. */
@@ -832,66 +863,6 @@ button[disabled] {
 
 .rule strong {
   color: var(--accent);
-}
-
-/* Numbered pipeline. The counter is drawn rather than list-style so it can sit in the
-   gutter at a fixed width and keep every step's text on one left edge. */
-ol.flow {
-  list-style: none;
-  counter-reset: step;
-  margin: 0.6rem 0 0;
-  padding: 0;
-}
-
-ol.flow li {
-  counter-increment: step;
-  position: relative;
-  padding: 0 0 0.9rem 2.1rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-ol.flow li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: 0.05rem;
-  width: 1.45rem;
-  height: 1.45rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-  display: grid;
-  place-items: center;
-}
-
-/* The connecting rule, drawn between one marker and the next rather than around them. */
-ol.flow li:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 0.72rem;
-  top: 1.6rem;
-  bottom: 0.25rem;
-  border-left: 1px solid var(--line);
-}
-
-ol.flow b {
-  font-weight: 600;
-}
-
-/* Which knobs govern this step. Trailing, muted, never competing with the sentence. */
-.knob {
-  display: block;
-  margin-top: 0.15rem;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.knob code {
-  margin-right: 0.35rem;
 }
 
 ul.never {

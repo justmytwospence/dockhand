@@ -1,7 +1,6 @@
 import type { FC } from 'hono/jsx'
 import { version } from '../version.ts'
 import {
-  IconAbout,
   IconActivity,
   IconAuto,
   IconDashboard,
@@ -46,7 +45,6 @@ export const NAV: NavItem[] = [
   { href: '/activity', label: 'Activity', icon: IconActivity, primary: true },
   { href: '/settings', label: 'Settings', icon: IconSettings, primary: true },
   { href: '/system', label: 'System', icon: IconSystem },
-  { href: '/about', label: 'About', icon: IconAbout },
 ]
 
 /** `/images?group=stack` must still light up the Images tab. */

@@ -3,6 +3,7 @@ import type { Policy } from '../../config.ts'
 import { SECTIONS, SETTINGS, currentValue, type SettingDef } from '../../settings.ts'
 import { Layout, Banner, type MissingSetting } from './layout.tsx'
 import { Help } from './shell.tsx'
+import { Explain, ExplainIntro, ReferenceTables } from './explain.tsx'
 import { PROMPTS, type PromptName } from '../../prompts/index.ts'
 
 /**
@@ -15,7 +16,11 @@ import { PROMPTS, type PromptName } from '../../prompts/index.ts'
  * many pages a model may read, and showing them at the same size is how twenty-six
  * settings become a wall. The second kind folds away.
  *
- * Section ids are slugs of their names so /about can link straight at one.
+ * Third, and the reason this page absorbed what used to be /about: with explanations
+ * switched on, each section carries the prose describing that stage, so reading the nav
+ * top to bottom is the path an update takes. The prose lives in explain.tsx and is always
+ * in the DOM -- CSS decides whether it shows -- which is what lets the preference survive
+ * the htmx swap that a Save performs. Section ids are slugs of their names.
  */
 
 export interface PromptState {
@@ -37,6 +42,13 @@ export const slug = (s: string): string =>
 const PANES = [
   ...SECTIONS.map(([name, blurb]) => ({ id: slug(name), label: name, blurb, form: true })),
   {
+    id: 'reference',
+    label: 'Reference',
+    blurb:
+      'The two things here that are not settings: the labels you put on a service, and where each kind of configuration lives. Labels are in compose files rather than policy.yaml, so no control on this page can hold them.',
+    form: false,
+  },
+  {
     id: 'next-digest',
     label: 'Next digest',
     blurb:
@@ -55,13 +67,22 @@ const PANES = [
 /**
  * Switching panes, and keeping the URL honest.
  *
- * Bootstrap's own tab JS would work, but it does not know about the hash, and /about
- * links straight at individual sections (`/settings#reading-the-changelog`). So this
- * does both: activate on click AND on load from the hash, and write the hash back as
- * you move so the address bar always names what you are looking at.
+ * Bootstrap's own tab JS would work, but it does not know about the hash, and a section
+ * has to be linkable on its own (`/settings#changelog-review`) -- from a notification, a
+ * bookmark, or the prose in another pane. So this does both: activate on click AND on
+ * load from the hash, and write the hash back as you move so the address bar always
+ * names what you are looking at.
  *
- * It also hides the Save bar on the two panes that are not part of the form -- a Save
- * button that does nothing for what is on screen is worse than no button.
+ * It also hides the Save bar on the panes that are not part of the form -- a Save button
+ * that does nothing for what is on screen is worse than no button.
+ *
+ * The htmx:afterSwap hook is not optional. A Save replaces #settings-form's innerHTML
+ * with freshly rendered panes, none of which carry `active`, while the nav sits outside
+ * the swap and keeps its highlight -- so without this the page reads "nav says Merging,
+ * content area empty" until you click something. Current pane comes from the nav rather
+ * than the hash because someone who arrived at /settings with no hash has only the nav.
+ * The target guard matters too: #digest-preview fires on load and bubbles the same event,
+ * and acting on that would yank you off the pane you are reading.
  */
 const PANE_SCRIPT = `(function(){
   function show(id, push){
@@ -85,25 +106,46 @@ const PANE_SCRIPT = `(function(){
   addEventListener('hashchange', function(){ show(location.hash.slice(1), false); });
   var first = document.querySelector('.settings-nav .nav-link');
   if (!show(location.hash.slice(1), false) && first) show(first.dataset.pane, false);
+  document.body.addEventListener('htmx:afterSwap', function(e){
+    if (e.target.id !== 'settings-form') return;
+    var cur = document.querySelector('.settings-nav .nav-link.active');
+    show((cur && cur.dataset.pane) || location.hash.slice(1) || (first && first.dataset.pane), false);
+  });
 })()`
 
 export const SettingsPage: FC<{
   policy: Policy
   models: string[]
   prompts: PromptState[]
+  /** Only the preamble needs it, which is why SettingsForm does not take it. */
+  repo: string
   result?: { ok: true; applied: string[]; commit: string | null } | { ok: false; errors: string[] }
   missing?: MissingSetting[]
-}> = ({ policy, models, prompts, result, missing }) => (
+}> = ({ policy, models, prompts, repo, result, missing }) => (
   <Layout
     title="Settings"
     path="/settings"
     missing={missing}
     actions={
-      <a class="btn" href="/settings/raw">
-        View policy.yaml
-      </a>
+      <div class="d-flex align-items-center gap-2">
+        {/* Outside #settings-form on purpose: a Save swaps that subtree, and a control
+            that re-serialises mid-edit is a control that loses its state. */}
+        <label class="form-check form-switch explain-toggle mb-0">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            onchange="window.shipshapeSetExplain(this.checked)"
+          />
+          <span class="form-check-label">Explain</span>
+        </label>
+        <a class="btn" href="/settings/raw">
+          View policy.yaml
+        </a>
+      </div>
     }
   >
+    <ExplainIntro repo={repo} />
     <div class="settings-shell">
       {/* Section list. Sticky, so the place you are in the config is always visible --
           which is the thing eleven stacked cards could never tell you. */}
@@ -122,6 +164,14 @@ export const SettingsPage: FC<{
       <div class="settings-panes">
         <div id="settings-form">
           <SettingsForm policy={policy} models={models} result={result} />
+        </div>
+
+        <div class="settings-pane" id="pane-reference" data-form="0">
+          <div class="pane-head">
+            <h3 class="pane-title">Reference</h3>
+            <Help label="Reference" text={PANES.find((p) => p.id === 'reference')!.blurb} />
+          </div>
+          <ReferenceTables />
         </div>
 
         <div class="settings-pane" id="pane-next-digest" data-form="0">
@@ -224,8 +274,8 @@ export const SettingsForm: FC<{
       // collapses a legend that is literally the same object.
       const shared = sharedLegend(all)
       return (
-        // One pane per section; only the active one is displayed. `id` keeps the slug
-        // /about links at, and data-form tells the pane script whether Save applies.
+        // One pane per section; only the active one is displayed. data-form tells the
+        // pane script whether Save applies to what is on screen.
         <section id={`pane-${slug(name)}`} class="settings-pane" data-form="1">
           <div class="pane-head">
             <h3 class="pane-title">{name}</h3>
@@ -237,6 +287,10 @@ export const SettingsForm: FC<{
               />
             )}
           </div>
+          {/* Outside .settings deliberately: that is a grid whose children are laid out
+              by `.setting { display: contents }`, so prose placed inside it would be
+              pulled into the label column. */}
+          <Explain section={name} />
           {primary.length > 0 && (
             <div class="settings">
               {primary.map((def) => (

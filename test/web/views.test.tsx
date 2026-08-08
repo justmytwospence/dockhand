@@ -96,7 +96,7 @@ test('activity kind chips carry their colour as an inline custom property', () =
 })
 
 test('every page is a complete document and names itself', () => {
-  for (const key of ['dashboard', 'images', 'activity', 'settings', 'system', 'about']) {
+  for (const key of ['dashboard', 'images', 'activity', 'settings', 'system']) {
     const html = R[key]!
     assert.match(html, /^<html lang="en" data-bs-theme="(light|dark)">/, key)
     assert.match(html, /<title>[^<]+ · shipshape<\/title>/, key)
@@ -172,18 +172,54 @@ test('every settings pane has a nav entry, and every nav entry a pane', () => {
   // item that activates nothing, with no error anywhere.
   const navIds = [...R.settings!.matchAll(/data-pane="([^"]+)"/g)].map((m) => m[1]!)
   const paneIds = [...R.settings!.matchAll(/id="pane-([^"]+)"/g)].map((m) => m[1]!)
-  assert.ok(navIds.length >= 11, `expected 11+ nav entries, got ${navIds.length}`)
+  assert.ok(navIds.length >= 12, `expected 12+ nav entries, got ${navIds.length}`)
   assert.deepEqual(navIds.slice().sort(), paneIds.slice().sort())
 })
 
-test('the /about deep links still name real settings panes', () => {
-  // About links straight at sections (/settings#reading-the-changelog). Those are now
-  // pane ids activated by the hash, not scroll anchors -- same hrefs, different mechanism.
-  const targets = [...R.about!.matchAll(/href="\/settings#([^"]+)"/g)].map((m) => m[1]!)
+test('the explanations only link at panes that exist', () => {
+  // This used to guard /about's deep links into Settings. The prose now lives inside the
+  // panes it describes, so the same links became same-page anchors -- and the invariant
+  // matters more, not less: a hash naming no pane activates nothing and reports nothing.
+  const targets = [...R.settings!.matchAll(/href="(?:\/settings)?#([^"]+)"/g)].map((m) => m[1]!)
   assert.ok(targets.length >= 5)
   for (const t of new Set(targets)) {
-    assert.ok(R.settings!.includes(`id="pane-${t}"`), `/about links at #${t}, which has no pane`)
+    assert.ok(R.settings!.includes(`id="pane-${t}"`), `settings links at #${t}, which has no pane`)
   }
+})
+
+test('every policy section carries an explanation', () => {
+  // One per form pane. A section added to SECTIONS without prose is a type error in
+  // explain.tsx, but a section whose prose stops being *rendered* would be silent.
+  const panes = (R.settings!.match(/class="settings-pane" data-form="1"/g) ?? []).length
+  const explains = (R.settings!.match(/class="explain"/g) ?? []).length
+  assert.equal(panes, 9)
+  assert.equal(explains, 9)
+})
+
+test('explanations are off until asked for, and decided before anything paints', () => {
+  // Same contract as the theme: the preference is applied by the inline head script, so
+  // the prose never flashes. If it were server-rendered onto <html> instead, the two
+  // tests anchoring that tag's exact shape would break.
+  assert.match(APP_CSS, /\.explain\s*\{\s*display:\s*none/)
+  assert.match(APP_CSS, /\[data-explain='on'\]\s*\.explain/)
+  const head = R.settings!.slice(0, R.settings!.indexOf('tabler.min.css'))
+  assert.ok(head.includes('shipshape-explain'), 'the explain pref is set after first paint')
+  assert.ok(!/<html[^>]*data-explain/.test(R.settings!), 'data-explain must not be server-rendered')
+})
+
+test('the explain switch sits outside the settings form', () => {
+  // A Save swaps #settings-form's innerHTML. A control inside it would be re-rendered
+  // unchecked mid-session, silently disagreeing with localStorage.
+  const sw = R.settings!.indexOf('explain-toggle')
+  const form = R.settings!.indexOf('id="settings-form"')
+  assert.ok(sw >= 0 && form >= 0)
+  assert.ok(sw < form, 'the explain switch must not be inside the swapped form')
+})
+
+test('the pane script survives a save', () => {
+  // Regression cover: a Save re-renders every pane without `active`, so without an
+  // afterSwap hook the content area goes blank while the nav still says otherwise.
+  assert.match(R.settings!, /htmx:afterSwap/)
 })
 
 test('every setting input stays inside the form, including on hidden panes', () => {
