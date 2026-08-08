@@ -332,7 +332,7 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
             Two would be two things to click for one question. */}
         {about ? <Help label={def.label} text={about} /> : null}
         {changed && (
-          <span class="pill accent changed" title={`default: ${def.defaultValue}`}>
+          <span class="pill accent changed" title={`default: ${def.defaultLabel ?? def.defaultValue}`}>
             changed
           </span>
         )}
@@ -349,7 +349,7 @@ const Field: FC<{ def: SettingDef; value: string; models: string[]; legend?: boo
       {inline ? (
         <p class="help">
           {def.locked ? <em>{def.locked}</em> : def.help}
-          {changed && <span class="sub"> · default {def.defaultValue}</span>}
+          {changed && <span class="sub"> · default {def.defaultLabel ?? def.defaultValue}</span>}
         </p>
       ) : null}
     </div>

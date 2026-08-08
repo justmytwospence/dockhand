@@ -59,6 +59,18 @@ export interface SettingDef {
   min?: number
   /** Shown as "default: X" so a changed value is obvious. */
   defaultValue: string
+  /**
+   * What to call the default when the value itself is not worth showing. `max_open`
+   * defaults to empty, and "default: " renders as a sentence that stops mid-word;
+   * "default: unlimited" says the thing.
+   */
+  defaultLabel?: string
+  /**
+   * Blank is a legal value and means "no limit", written to the file as `null`. Only
+   * for keys whose schema is genuinely nullable -- a blank on any other key is a typo
+   * and must stay an error.
+   */
+  optional?: boolean
   /** Present = read-only, with the reason shown. */
   locked?: string
   section: SectionName
@@ -315,11 +327,13 @@ export const SETTINGS: SettingDef[] = [
     path: 'prs.max_open',
     kind: 'int',
     min: 1,
-    defaultValue: '5',
+    optional: true,
+    defaultValue: '',
+    defaultLabel: 'unlimited',
     label: 'Max open at once',
-    help: '',
+    help: 'blank for no limit',
     about:
-      'New ones open as older ones merge or close. A backlog arriving all at once is a wall, not a queue.',
+      'Blank opens everything eligible at once. A number holds the rest back until an open one merges or closes -- which keeps the list short, at the cost of a full queue being silent: five stale pull requests once held fifteen updates shut for six days.',
   },
   {
     section: 'Pull requests',
@@ -637,6 +651,11 @@ function gitOut(args: string[]): string {
   }
 }
 
+// Exported under fuller names so the rules themselves are testable: both are pure, and
+// the alternative -- reaching them through applySettings -- drags in the filesystem and
+// a git commit to assert on a string.
+export { validate as validateSetting, format as formatSetting }
+
 function validate(def: SettingDef, value: string): string | null {
   switch (def.kind) {
     case 'enum':
@@ -644,6 +663,7 @@ function validate(def: SettingDef, value: string): string | null {
     case 'bool':
       return value === 'true' || value === 'false' ? null : 'must be true or false'
     case 'int': {
+      if (value === '' && def.optional) return null
       if (!/^\d+$/.test(value)) return 'must be a whole number'
       if (def.min !== undefined && Number(value) < def.min) return `must be at least ${def.min}`
       return null
@@ -676,6 +696,9 @@ function validate(def: SettingDef, value: string): string | null {
 }
 
 function format(def: SettingDef, value: string): string {
+  // An empty optional is the absence of a limit, and YAML says that with `null`. Not
+  // an empty string: `max_open: ` parses as null too, but reads as an unfinished edit.
+  if (value === '' && def.optional) return 'null'
   if (def.kind === 'windows') {
     const items = value
       .split(',')

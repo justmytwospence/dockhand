@@ -118,7 +118,9 @@ export type Tier = z.infer<typeof Tier>
 /** "HH:MM-HH:MM", may wrap past midnight. */
 const Window = z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/)
 
-const PolicySchema = z.object({
+/** Exported so the defaults themselves can be asserted on; parse through
+ *  `validatePolicyText` or `loadPolicy` in application code. */
+export const PolicySchema = z.object({
   // Must match what the GitHub repo settings actually allow, or the merge API 405s.
   merge_method: z.enum(['squash', 'merge', 'rebase']).default('squash'),
   sync: z
@@ -188,10 +190,16 @@ const PolicySchema = z.object({
         .enum(['coexist', 'wud-coexist', 'full'])
         .default('coexist')
         .transform((v) => (v === 'wud-coexist' ? ('coexist' as const) : v)),
-      // Ceiling on simultaneously open pull requests. A backlog of 21 arriving at once
-      // is not a review queue, it is a wall -- and every one of them would need
-      // rebasing as the others merge. New PRs open as older ones are merged or closed.
-      max_open: z.number().int().positive().default(5),
+      // Ceiling on simultaneously open pull requests. `null` -- the default -- means no
+      // ceiling: everything eligible opens at once.
+      //
+      // It used to default to 5, on the theory that a backlog arriving together is a
+      // wall rather than a review queue. The cost of the other direction turned out to
+      // be worse: a full queue is silent, and five pull requests nobody got round to
+      // merging held fifteen updates shut for six days while the log repeated one
+      // `holding 15 update(s)` line. A wall is at least visible. The setting stays for
+      // anyone who wants the ceiling back.
+      max_open: z.number().int().positive().nullable().default(null),
       // false parks the engine entirely: updates are still detected and shown, but
       // nothing is pushed and no pull request is created.
       enabled: z.boolean().default(true),

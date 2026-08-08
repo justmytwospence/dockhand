@@ -93,7 +93,10 @@ export async function runPrPass(): Promise<PrRunResult> {
     if (groups.length === 0) return out
 
     const openNow = countOpenPrs()
-    const room = Math.max(0, policy.prs.max_open - openNow)
+    // `null` is no ceiling: every eligible group opens this pass. Written as a branch
+    // rather than folding null to Infinity so the arithmetic below never sees a
+    // non-finite number and `groups.slice(0, room)` stays an honest integer slice.
+    const room = policy.prs.max_open === null ? groups.length : Math.max(0, policy.prs.max_open - openNow)
     if (room === 0) {
       // Once per change of fact, not once per poll. The PR loop runs every 60s while
       // anything is open, and this branch is the steady state of a full queue -- logging
